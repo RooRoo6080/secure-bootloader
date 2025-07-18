@@ -1,13 +1,21 @@
 // Copyright 2024 The MITRE Corporation. ALL RIGHTS RESERVED
 // Approved for public release. Distribution unlimited 23-02181-25.
 
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+
 #include "bootloader.h"
 
 // Hardware Imports
 #include "inc/hw_memmap.h"    // Peripheral Base Addresses
 #include "inc/hw_types.h"     // Boolean type
 #include "inc/tm4c123gh6pm.h" // Peripheral Bit Masks and Registers
-// #include "inc/hw_ints.h" // Interrupt numbers
+#include "inc/hw_ints.h" // Interrupt numbers
+
+#include "driverlib/sysctl.h"
+#include "driverlib/adc.h"
 
 // Driver API Imports
 #include "driverlib/flash.h"     // FLASH API
@@ -17,6 +25,13 @@
 // Application Imports
 #include "driverlib/gpio.h"
 #include "uart/uart.h"
+
+#include "wolfssl/wolfcrypt/settings.h"
+#include "wolfssl/wolfcrypt/sha.h"
+#include "wolfssl/wolfcrypt/rsa.h"
+#include "wolfssl/wolfcrypt/types.h"
+
+#include "public_key.h"
 
 // Forward Declarations
 void load_firmware(void);
@@ -31,6 +46,8 @@ void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
 #define FLASH_PAGESIZE 1024
 #define FLASH_WRITESIZE 4
 
+#define SIGNATURE_LEN 256
+
 // Device metadata
 uint16_t * fw_version_address = (uint16_t *)METADATA_BASE;
 uint16_t * fw_size_address = (uint16_t *)(METADATA_BASE + 2);
@@ -39,6 +56,9 @@ uint8_t * fw_release_message_address;
 // Firmware Buffer
 unsigned char data[FLASH_PAGESIZE];
 
+RsaKey pub_key;
+wc_Sha sha256_ctx;
+byte firmware_hash[WC_SHA_DIGEST_SIZE];
 
 int main(void) {
 
@@ -46,6 +66,15 @@ int main(void) {
 
     uart_write_str(UART0, "Welcome to the BWSI Vehicle Update Service!\n");
     uart_write_str(UART0, "Send \"U\" to update, and \"B\" to run the firmware.\n");
+
+    wc_InitRsaKey(&pub_key, NULL);
+    word32 idx = 0;
+    int ret = wc_RsaPublicKeyDecode(public_key_der, &idx, &pub_key, public_key_der_len);
+    if (ret != 0) {
+        uart_write_str(UART0, "failed to load RSA pub key");
+        while (true) {
+        }
+    }
 
     int resp;
     while (1) {
@@ -64,8 +93,7 @@ int main(void) {
     }
 }
 
-
- /*
+/*
  * Load the firmware into flash.
  */
 void load_firmware(void) {
@@ -77,6 +105,9 @@ void load_firmware(void) {
     uint32_t page_addr = FW_BASE;
     uint32_t version = 0;
     uint32_t size = 0;
+    byte signature[SIGNATURE_LEN];
+    byte * decrypted_sig_hash;
+    int decrypted_len;
 
     // Get version.
     rcv = uart_read(UART0, BLOCKING, &read);
@@ -109,7 +140,7 @@ void load_firmware(void) {
     // Write new firmware size and version to Flash
     // Create 32 bit word for flash programming, version is at lower address, size is at higher address
     uint32_t metadata = ((size & 0xFFFF) << 16) | (version & 0xFFFF);
-    program_flash((uint8_t *) METADATA_BASE, (uint8_t *)(&metadata), 4);
+    program_flash((uint8_t *)METADATA_BASE, (uint8_t *)(&metadata), 4);
 
     uart_write(UART0, OK); // Acknowledge the metadata.
 
@@ -122,6 +153,37 @@ void load_firmware(void) {
         rcv = uart_read(UART0, BLOCKING, &read);
         frame_length += (int)rcv;
 
+        if (frame_length == 0) {
+            for (int i = 0; i < SIGNATURE_LEN; ++i) {
+                signature[i] = uart_read(UART0, BLOCKING, &read);
+            }
+
+            wc_Sha256Final(&sha256_ctx, firmware_hash);
+
+            decrypted_len = wc_RsaPSS_VerifyInline(signature, SIGNATURE_LEN, &decrypted_sig_hash, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub_key);
+
+            // TODO: should clear memory
+            if (decrypted_len < 0) {
+                uart_write_str(UART0, "decryption failure, restarting");
+                uart_write(UART0, ERROR);
+                SysCtlReset();
+                return;
+            }
+
+            int ret_verify = wc_RsaPSS_CheckPadding(firmware_hash, WC_SHA256_DIGEST_SIZE, decrypted_sig_hash, (word32)decrypted_len, WC_HASH_TYPE_SHA256);
+
+            if (ret_verify == 0) {
+                uart_write(UART0, OK);
+                break;
+            } else {
+                // TODO: clear memory (make a function to do this)
+                uart_write_str(UART0, "verification failed, restarting");
+                uart_write(UART0, ERROR);
+                SysCtlReset();
+                return;
+            }
+        }
+
         // Get the number of bytes specified
         for (int i = 0; i < frame_length; ++i) {
             data[data_index] = uart_read(UART0, BLOCKING, &read);
@@ -131,7 +193,7 @@ void load_firmware(void) {
         // If we filed our page buffer, program it
         if (data_index == FLASH_PAGESIZE || frame_length == 0) {
             // Try to write flash and check for error
-            if (program_flash((uint8_t *) page_addr, data, data_index)) {
+            if (program_flash((uint8_t *)page_addr, data, data_index)) {
                 uart_write(UART0, ERROR); // Reject the firmware
                 SysCtlReset();            // Reset device
                 return;
@@ -160,13 +222,13 @@ void load_firmware(void) {
  * This functions performs an erase of the specified flash page before writing
  * the data.
  */
-long program_flash(void* page_addr, unsigned char * data, unsigned int data_len) {
+long program_flash(void * page_addr, unsigned char * data, unsigned int data_len) {
     uint32_t word = 0;
     int ret;
     int i;
 
     // Erase next FLASH page
-    FlashErase((uint32_t) page_addr);
+    FlashErase((uint32_t)page_addr);
 
     // Clear potentially unused bytes in last word
     // If data not a multiple of 4 (word size), program up to the last word
@@ -177,7 +239,7 @@ long program_flash(void* page_addr, unsigned char * data, unsigned int data_len)
         int num_full_bytes = data_len - rem;
 
         // Program up to the last word
-        ret = FlashProgram((unsigned long *)data, (uint32_t) page_addr, num_full_bytes);
+        ret = FlashProgram((unsigned long *)data, (uint32_t)page_addr, num_full_bytes);
         if (ret != 0) {
             return ret;
         }
@@ -191,17 +253,17 @@ long program_flash(void* page_addr, unsigned char * data, unsigned int data_len)
         }
 
         // Program word
-        return FlashProgram(&word, (uint32_t) page_addr + num_full_bytes, 4);
+        return FlashProgram(&word, (uint32_t)page_addr + num_full_bytes, 4);
     } else {
         // Write full buffer of 4-byte words
-        return FlashProgram((unsigned long *)data, (uint32_t) page_addr, data_len);
+        return FlashProgram((unsigned long *)data, (uint32_t)page_addr, data_len);
     }
 }
 
 void boot_firmware(void) {
     // Check if firmware loaded
     int fw_present = 0;
-    for (uint8_t* i = (uint8_t*) FW_BASE; i < (uint8_t*) FW_BASE + 20; i++) {
+    for (uint8_t * i = (uint8_t *)FW_BASE; i < (uint8_t *)FW_BASE + 20; i++) {
         if (*i != 0xFF) {
             fw_present = 1;
         }
@@ -209,7 +271,8 @@ void boot_firmware(void) {
 
     if (!fw_present) {
         uart_write_str(UART0, "No firmware loaded. Please RESET device.\n");
-        while (1) { }           // Reset device
+        while (1) {
+        } // Reset device
         return;
     }
 

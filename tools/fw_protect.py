@@ -9,6 +9,9 @@ Firmware Bundle-and-Protect Tool
 """
 import argparse
 import struct
+import hashlib
+from Crypto.PublicKey import RSA
+from Crypto.Signature import pkcs1_15
 
 
 def protect_firmware(infile, outfile, version, message):
@@ -18,6 +21,24 @@ def protect_firmware(infile, outfile, version, message):
 
     # Append null-terminated message to end of firmware
     firmware_and_message = firmware + message.encode() + b"\00"
+    
+    # implement AES here later
+    protected_firmware = firmware_and_message
+    
+    # #ing (haha get it? #ing = hashing)
+    h = hashlib.sha256()
+    h.update(protected_firmware)
+    firmware_hash = h.digest()
+    print(f"firmware SHA hash: {firmware_hash.hex()}")
+
+    # RSA signing
+    # NEED PATH TO PRIVATE KEY HERE
+    with open("./secret_build_output.txt", "rb") as key_file:
+        private_key = RSA.import_key(key_file.read())
+
+    signer = pkcs1_15.new(private_key)
+    signature = signer.sign(firmware_hash)
+    print(f"Signature: {signature.hex()}")
 
     # Pack version and size into two little-endian shorts
     metadata = struct.pack('<H', version) + struct.pack('<H', len(firmware))
