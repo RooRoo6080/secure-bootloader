@@ -12,6 +12,7 @@ import struct
 import hashlib
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
 
 
 def protect_firmware(infile, outfile, version, message):
@@ -28,8 +29,8 @@ def protect_firmware(infile, outfile, version, message):
     # #ing (haha get it? #ing = hashing)
     h = hashlib.sha256()
     h.update(protected_firmware)
-    firmware_hash = h.digest()
-    print(f"firmware SHA hash: {firmware_hash.hex()}")
+    firmware_hash = SHA256.new(data=h.digest())
+    print(f"firmware SHA hash: {firmware_hash}")
 
     # RSA signing
     # NEED PATH TO PRIVATE KEY HERE

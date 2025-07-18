@@ -26,10 +26,10 @@
 #include "driverlib/gpio.h"
 #include "uart/uart.h"
 
-#include "wolfssl/wolfcrypt/settings.h"
-#include "wolfssl/wolfcrypt/sha.h"
-#include "wolfssl/wolfcrypt/rsa.h"
-#include "wolfssl/wolfcrypt/types.h"
+// #include "wolfssl/wolfcrypt/settings.h"
+// #include "wolfssl/wolfcrypt/sha.h"
+// #include "wolfssl/wolfcrypt/rsa.h"
+// #include "wolfssl/wolfcrypt/types.h"
 
 #include "public_key.h"
 
@@ -56,9 +56,9 @@ uint8_t * fw_release_message_address;
 // Firmware Buffer
 unsigned char data[FLASH_PAGESIZE];
 
-RsaKey pub_key;
-wc_Sha sha256_ctx;
-byte firmware_hash[WC_SHA_DIGEST_SIZE];
+// RsaKey pub_key;
+// wc_Sha sha256_ctx;
+// byte firmware_hash[WC_SHA_DIGEST_SIZE];
 
 int main(void) {
 
@@ -67,14 +67,14 @@ int main(void) {
     uart_write_str(UART0, "Welcome to the BWSI Vehicle Update Service!\n");
     uart_write_str(UART0, "Send \"U\" to update, and \"B\" to run the firmware.\n");
 
-    wc_InitRsaKey(&pub_key, NULL);
-    word32 idx = 0;
-    int ret = wc_RsaPublicKeyDecode(public_key_der, &idx, &pub_key, public_key_der_len);
-    if (ret != 0) {
-        uart_write_str(UART0, "failed to load RSA pub key");
-        while (true) {
-        }
-    }
+    // wc_InitRsaKey(&pub_key, NULL);
+    // word32 idx = 0;
+    // int ret = wc_RsaPublicKeyDecode(public_key_der, &idx, &pub_key, public_key_der_len);
+    // if (ret != 0) {
+    //     uart_write_str(UART0, "failed to load RSA pub key");
+    //     while (true) {
+    //     }
+    // }
 
     int resp;
     while (1) {
@@ -105,8 +105,8 @@ void load_firmware(void) {
     uint32_t page_addr = FW_BASE;
     uint32_t version = 0;
     uint32_t size = 0;
-    byte signature[SIGNATURE_LEN];
-    byte * decrypted_sig_hash;
+    // byte signature[SIGNATURE_LEN];
+    // byte * decrypted_sig_hash;
     int decrypted_len;
 
     // Get version.
@@ -153,36 +153,36 @@ void load_firmware(void) {
         rcv = uart_read(UART0, BLOCKING, &read);
         frame_length += (int)rcv;
 
-        if (frame_length == 0) {
-            for (int i = 0; i < SIGNATURE_LEN; ++i) {
-                signature[i] = uart_read(UART0, BLOCKING, &read);
-            }
+        // if (frame_length == 0) {
+        //     for (int i = 0; i < SIGNATURE_LEN; ++i) {
+        //         signature[i] = uart_read(UART0, BLOCKING, &read);
+        //     }
 
-            wc_Sha256Final(&sha256_ctx, firmware_hash);
+        //     wc_Sha256Final(&sha256_ctx, firmware_hash);
 
-            decrypted_len = wc_RsaPSS_VerifyInline(signature, SIGNATURE_LEN, &decrypted_sig_hash, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub_key);
+        //     decrypted_len = wc_RsaPSS_VerifyInline(signature, SIGNATURE_LEN, &decrypted_sig_hash, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub_key);
 
-            // TODO: should clear memory
-            if (decrypted_len < 0) {
-                uart_write_str(UART0, "decryption failure, restarting");
-                uart_write(UART0, ERROR);
-                SysCtlReset();
-                return;
-            }
+        //     // TODO: should clear memory
+        //     if (decrypted_len < 0) {
+        //         uart_write_str(UART0, "decryption failure, restarting");
+        //         uart_write(UART0, ERROR);
+        //         SysCtlReset();
+        //         return;
+        //     }
 
-            int ret_verify = wc_RsaPSS_CheckPadding(firmware_hash, WC_SHA256_DIGEST_SIZE, decrypted_sig_hash, (word32)decrypted_len, WC_HASH_TYPE_SHA256);
+        //     int ret_verify = wc_RsaPSS_CheckPadding(firmware_hash, WC_SHA256_DIGEST_SIZE, decrypted_sig_hash, (word32)decrypted_len, WC_HASH_TYPE_SHA256);
 
-            if (ret_verify == 0) {
-                uart_write(UART0, OK);
-                break;
-            } else {
-                // TODO: clear memory (make a function to do this)
-                uart_write_str(UART0, "verification failed, restarting");
-                uart_write(UART0, ERROR);
-                SysCtlReset();
-                return;
-            }
-        }
+        //     if (ret_verify == 0) {
+        //         uart_write(UART0, OK);
+        //         break;
+        //     } else {
+        //         // TODO: clear memory (make a function to do this)
+        //         uart_write_str(UART0, "verification failed, restarting");
+        //         uart_write(UART0, ERROR);
+        //         SysCtlReset();
+        //         return;
+        //     }
+        // }
 
         // Get the number of bytes specified
         for (int i = 0; i < frame_length; ++i) {
