@@ -6,7 +6,15 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "bootloader.h"
+#include "../inc/user_settings.h"
+#include "../inc/bootloader.h"
+
+// #include "wolfssl/options.h"
+// #include "wolfssl/wolfcrypt/integer.h"
+// #include "wolfssl/wolfcrypt/settings.h"
+// #include "wolfssl/wolfcrypt/types.h"
+// #include "wolfssl/wolfcrypt/rsa.h"
+// #include "wolfssl/wolfcrypt/sha.h"
 
 // Hardware Imports
 #include "inc/hw_memmap.h"    // Peripheral Base Addresses
@@ -24,12 +32,7 @@
 
 // Application Imports
 #include "driverlib/gpio.h"
-#include "uart/uart.h"
-
-// #include "wolfssl/wolfcrypt/settings.h"
-// #include "wolfssl/wolfcrypt/sha.h"
-// #include "wolfssl/wolfcrypt/rsa.h"
-// #include "wolfssl/wolfcrypt/types.h"
+#include "uart/uart.h"  
 
 #include "public_key.h"
 

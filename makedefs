@@ -90,6 +90,70 @@ CFLAGS+=-ggdb -D DEBUG -O0
 
 CFLAGS+=-Os
 
+CFLAGS+=-I${WOLFSSL_ROOT}
+CFLAGS+=-DWOLFSSL_USER_SETTINGS
+
+# # Archives
+# DRIVERLIB_ARCHIVE=${LIB}/driverlib/bin/libdriver.a
+# DRIVERLIB_OBJS=${LIB}/driverlib/bin/aes.o       \
+#                ${LIB}/driverlib/bin/can.o       \
+#                ${LIB}/driverlib/bin/comp.o      \
+#                ${LIB}/driverlib/bin/cpu.o       \
+#                ${LIB}/driverlib/bin/crc.o       \
+#                ${LIB}/driverlib/bin/des.o       \
+#                ${LIB}/driverlib/bin/eeprom.o    \
+#                ${LIB}/driverlib/bin/emac.o      \
+#                ${LIB}/driverlib/bin/epi.o       \
+#                ${LIB}/driverlib/bin/flash.o     \
+#                ${LIB}/driverlib/bin/fpu.o       \
+#                ${LIB}/driverlib/bin/gpio.o      \
+#                ${LIB}/driverlib/bin/hibernate.o \
+#                ${LIB}/driverlib/bin/i2c.o       \
+#                ${LIB}/driverlib/bin/interrupt.o \
+#                ${LIB}/driverlib/bin/lcd.o       \
+#                ${LIB}/driverlib/bin/mpu.o       \
+#                ${LIB}/driverlib/bin/onewire.o   \
+#                ${LIB}/driverlib/bin/pwm.o       \
+#                ${LIB}/driverlib/bin/qei.o       \
+#                ${LIB}/driverlib/bin/shamd5.o    \
+#                ${LIB}/driverlib/bin/ssi.o       \
+#                ${LIB}/driverlib/bin/sw_crc.o    \
+#                ${LIB}/driverlib/bin/sysctl.o    \
+#                ${LIB}/driverlib/bin/sysexc.o    \
+#                ${LIB}/driverlib/bin/systick.o   \
+#                ${LIB}/driverlib/bin/timer.o     \
+#                ${LIB}/driverlib/bin/uart.o      \
+#                ${LIB}/driverlib/bin/udma.o      \
+#                ${LIB}/driverlib/bin/usb.o       \
+#                ${LIB}/driverlib/bin/adc.o       \
+#                ${LIB}/driverlib/bin/watchdog.o
+# UART_ARCHIVE=${LIB}/uart/bin/uart.a
+# LED_ARCHIVE=${LIB}/led/bin/led.a
+# FLAG_ARCHIVE=${LIB}/flag/bin/flag.a
+# WOLFSSL_ARCHIVE=${WOLFSSL_ROOT}/IDE/GCC-ARM/Build/libwolfssl.a
+
+# wolfssl: ${WOLFSSL_ARCHIVE}
+# ${WOLFSSL_ARCHIVE}:
+# 	@echo ${LIB}
+# 	make -C ${LIB}/wolfssl/IDE/GCC-ARM $(WOLFSSL_MAKE_ARGS)
+
+# driverlib: ${DRIVERLIB_ARCHIVE}
+# ${DRIVERLIB_ARCHIVE}:
+# 	@echo ${LIB}
+# 	make -C ${LIB}/driverlib
+
+# uart: ${UART_ARCHIVE}
+# ${UART_ARCHIVE}:
+# 	make -C ${LIB}/uart
+
+# clean:
+# 	make -C ${LIB}/driverlib cleanlib
+# 	make -C ${LIB}/uart cleanlib
+# 	make -C ${LIB}/wolfssl/IDE/GCC-ARM clean
+# 	rm -rf bin
+# 	rm -rf *.o
+# 	rm -rf *.d
+
 # Object files from C files
 bin/%.o: %.c
 	${CC} ${CFLAGS} -D${COMPILER} -o ${@} ${<}
@@ -97,3 +161,17 @@ bin/%.o: %.c
 # Create static library archives (.a files)
 bin/%.a:
 	${AR} -cr ${@} ${^}
+
+# WOLFSSL CONFIGURATION
+WOLFSSL_ROOT=${LIB}/wolfssl
+TOOLCHAIN=${PREFIX}-
+USER_SETTINGS_DIR=$(abspath ${LIB}/inc)
+ARCHFLAGS="-mcpu=cortex-m4 -mthumb -mabi=aapcs -mfpu=fpv4-sp-d16 -mfloat-abi=hard"
+NO_EXAMPLES=true
+FIPS=0
+WOLFSSL_MAKE_ARGS=TOOLCHAIN=$(TOOLCHAIN) \
+				  USER_SETTINGS_DIR=$(USER_SETTINGS_DIR) \
+				  ARCHFLAGS=$(ARCHFLAGS) \
+				  NO_EXAMPLES=$(NO_EXAMPLES) \
+				  FIPS=$(FIPS)
+

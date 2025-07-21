@@ -20,6 +20,10 @@
  */
 
 /* Custom wolfSSL user settings for GCC ARM */
+#include "wolfssl/options.h"
+
+#define WOLFSSL_SP_MATH
+#define NO_ASM
 
 #ifndef WOLFSSL_USER_SETTINGS_H
 #define WOLFSSL_USER_SETTINGS_H
