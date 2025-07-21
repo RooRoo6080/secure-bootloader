@@ -74,8 +74,6 @@ def protect_firmware(infile, outfile, version, message):
     )
     
     # AES encryption
-    # need to figure out how to separately read RSA and AES keys from secret build output
-    # and probably also the IV
     
     with open(KEY_PATH, 'r') as f:
         keys = json.load(f)

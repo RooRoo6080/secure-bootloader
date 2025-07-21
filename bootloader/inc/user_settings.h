@@ -20,10 +20,6 @@
  */
 
 /* Custom wolfSSL user settings for GCC ARM */
-#include "wolfssl/options.h"
-
-#define WOLFSSL_SP_MATH
-#define NO_ASM
 
 #ifndef WOLFSSL_USER_SETTINGS_H
 #define WOLFSSL_USER_SETTINGS_H
@@ -123,7 +119,7 @@ extern "C" {
 /* ------------------------------------------------------------------------- */
 /* RSA */
 #undef NO_RSA
-#if 0
+#if 1
     #ifdef USE_FAST_MATH
         /* Maximum math bits (Max RSA key bits * 2) */
         #undef  FP_MAX_BITS
@@ -673,4 +669,3 @@ extern unsigned int my_rng_seed_gen(void);
 #endif
 
 #endif /* WOLFSSL_USER_SETTINGS_H */
-

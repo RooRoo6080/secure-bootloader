@@ -6,23 +6,17 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "../inc/user_settings.h"
-#include "../inc/bootloader.h"
+#include "bootloader.h"
 
-// #include "wolfssl/options.h"
-// #include "wolfssl/wolfcrypt/integer.h"
-// #include "wolfssl/wolfcrypt/settings.h"
-// #include "wolfssl/wolfcrypt/types.h"
-// #include "wolfssl/wolfcrypt/rsa.h"
-// #include "wolfssl/wolfcrypt/sha.h"
+#include "wolfssl/wolfcrypt/settings.h"
+#include "wolfssl/wolfcrypt/rsa.h"
+#include "wolfssl/wolfcrypt/sha.h"
 
 // Hardware Imports
 #include "inc/hw_memmap.h"    // Peripheral Base Addresses
 #include "inc/hw_types.h"     // Boolean type
 #include "inc/tm4c123gh6pm.h" // Peripheral Bit Masks and Registers
-#include "inc/hw_ints.h" // Interrupt numbers
 
-#include "driverlib/sysctl.h"
 #include "driverlib/adc.h"
 
 // Driver API Imports
@@ -59,25 +53,12 @@ uint8_t * fw_release_message_address;
 // Firmware Buffer
 unsigned char data[FLASH_PAGESIZE];
 
-// RsaKey pub_key;
-// wc_Sha sha256_ctx;
-// byte firmware_hash[WC_SHA_DIGEST_SIZE];
-
 int main(void) {
 
     initialize_uarts(UART0);
 
     uart_write_str(UART0, "Welcome to the BWSI Vehicle Update Service!\n");
     uart_write_str(UART0, "Send \"U\" to update, and \"B\" to run the firmware.\n");
-
-    // wc_InitRsaKey(&pub_key, NULL);
-    // word32 idx = 0;
-    // int ret = wc_RsaPublicKeyDecode(public_key_der, &idx, &pub_key, public_key_der_len);
-    // if (ret != 0) {
-    //     uart_write_str(UART0, "failed to load RSA pub key");
-    //     while (true) {
-    //     }
-    // }
 
     int resp;
     while (1) {
@@ -108,9 +89,6 @@ void load_firmware(void) {
     uint32_t page_addr = FW_BASE;
     uint32_t version = 0;
     uint32_t size = 0;
-    // byte signature[SIGNATURE_LEN];
-    // byte * decrypted_sig_hash;
-    int decrypted_len;
 
     // Get version.
     rcv = uart_read(UART0, BLOCKING, &read);
@@ -146,75 +124,6 @@ void load_firmware(void) {
     program_flash((uint8_t *)METADATA_BASE, (uint8_t *)(&metadata), 4);
 
     uart_write(UART0, OK); // Acknowledge the metadata.
-
-    /* Loop here until you can get all your characters and stuff */
-    while (1) {
-
-        // Get two bytes for the length.
-        rcv = uart_read(UART0, BLOCKING, &read);
-        frame_length = (int)rcv << 8;
-        rcv = uart_read(UART0, BLOCKING, &read);
-        frame_length += (int)rcv;
-
-        // if (frame_length == 0) {
-        //     for (int i = 0; i < SIGNATURE_LEN; ++i) {
-        //         signature[i] = uart_read(UART0, BLOCKING, &read);
-        //     }
-
-        //     wc_Sha256Final(&sha256_ctx, firmware_hash);
-
-        //     decrypted_len = wc_RsaPSS_VerifyInline(signature, SIGNATURE_LEN, &decrypted_sig_hash, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub_key);
-
-        //     // TODO: should clear memory
-        //     if (decrypted_len < 0) {
-        //         uart_write_str(UART0, "decryption failure, restarting");
-        //         uart_write(UART0, ERROR);
-        //         SysCtlReset();
-        //         return;
-        //     }
-
-        //     int ret_verify = wc_RsaPSS_CheckPadding(firmware_hash, WC_SHA256_DIGEST_SIZE, decrypted_sig_hash, (word32)decrypted_len, WC_HASH_TYPE_SHA256);
-
-        //     if (ret_verify == 0) {
-        //         uart_write(UART0, OK);
-        //         break;
-        //     } else {
-        //         // TODO: clear memory (make a function to do this)
-        //         uart_write_str(UART0, "verification failed, restarting");
-        //         uart_write(UART0, ERROR);
-        //         SysCtlReset();
-        //         return;
-        //     }
-        // }
-
-        // Get the number of bytes specified
-        for (int i = 0; i < frame_length; ++i) {
-            data[data_index] = uart_read(UART0, BLOCKING, &read);
-            data_index += 1;
-        } // for
-
-        // If we filed our page buffer, program it
-        if (data_index == FLASH_PAGESIZE || frame_length == 0) {
-            // Try to write flash and check for error
-            if (program_flash((uint8_t *)page_addr, data, data_index)) {
-                uart_write(UART0, ERROR); // Reject the firmware
-                SysCtlReset();            // Reset device
-                return;
-            }
-
-            // Update to next page
-            page_addr += FLASH_PAGESIZE;
-            data_index = 0;
-
-            // If at end of firmware, go to main
-            if (frame_length == 0) {
-                uart_write(UART0, OK);
-                break;
-            }
-        } // if
-
-        uart_write(UART0, OK); // Acknowledge the frame.
-    } // while(1)
 }
 
 /*

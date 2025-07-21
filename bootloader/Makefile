@@ -9,6 +9,7 @@ WOLFSSL=../lib/wolfssl
 
 DRIVERLIB_ARCHIVE=${LIB}/driverlib/bin/libdriver.a
 UART_ARCHIVE=${LIB}/uart/bin/uart.a
+WOLFSSL_ARCHIVE=${WOLFSSL}/IDE/GCC-ARM/Build/libwolfssl.a
 
 include ${BOOTLOADER_ROOT}/../makedefs
 
@@ -24,7 +25,7 @@ all: bootloader
 bootloader: driverlib
 bootloader: uart
 # Uncomment to compile wolfssl, must `git submodule update --init --recursive` first!
-#bootloader: wolfssl
+bootloader: wolfssl
 
 driverlib:
 	make -C ${LIB}/driverlib
@@ -33,7 +34,7 @@ uart:
 	make -C ${LIB}/uart
 
 # WOLFSSL CONFIGURATION
-TOOLCHAIN =arm-none-eabi-
+TOOLCHAIN=arm-none-eabi-
 USER_SETTINGS_DIR=$(abspath ${INC})
 ARCHFLAGS="-mcpu=cortex-m4 -mthumb -mabi=aapcs -mfpu=fpv4-sp-d16 -mfloat-abi=hard"
 NO_EXAMPLES=true
@@ -45,7 +46,6 @@ WOLFSSL_MAKE_ARGS=TOOLCHAIN=$(TOOLCHAIN) \
 				  FIPS=$(FIPS)
 wolfssl:
 	make -C ${WOLFSSL}/IDE/GCC-ARM $(WOLFSSL_MAKE_ARGS)
-	WOLFSSL_ARCHIVE=${WOLFSSL}/IDE/GCC-ARM/Build/libwolfssl.a
 
 bootloader: src/bootloader.o
 bootloader: src/startup_gcc.o
