@@ -1,15 +1,32 @@
 // Copyright 2024 The MITRE Corporation. ALL RIGHTS RESERVED
 // Approved for public release. Distribution unlimited 23-02181-25.
 
+
+// Payload format
+// -------------------------------------
+// HEADER (unencrypted)
+//  - encrypted payload length (4 bytes)
+// PAYLOAD (AES encrypted)
+//  - firmware binary length (4 bytes)
+//  - message length (4 bytes)
+//  - firmware version (2 bytes)
+//  - firmware binary
+//  - message
+//  - padding required for AES
+// SIGNATURE (SHA hashed and RSA signed)
+//  - signature (256 bytes)
+// -------------------------------------
+ 
+
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 
 #include "bootloader.h"
 
-#include "wolfssl/wolfcrypt/settings.h"
 #include "wolfssl/wolfcrypt/rsa.h"
+#include "wolfssl/wolfcrypt/settings.h"
 #include "wolfssl/wolfcrypt/sha.h"
 
 // Hardware Imports
@@ -26,7 +43,7 @@
 
 // Application Imports
 #include "driverlib/gpio.h"
-#include "uart/uart.h"  
+#include "uart/uart.h"
 
 #include "public_key.h"
 
@@ -34,10 +51,19 @@
 void load_firmware(void);
 void boot_firmware(void);
 void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
+uint8_t erase_partition(uint32_t, uint8_t);
+uint8_t check_firmware(uint32_t);
+uint8_t verify_signature(uint32_t, uint32_t, uint16_t);
+uint8_t aes_decrypt_move(uint32_t, uint16_t, uint32_t);
+void move_firmware(uint32_t, uint32_t, uint16_t);
 
 // Firmware Constants
-#define METADATA_BASE 0xFC00 // base address of version and firmware size in Flash
-#define FW_BASE 0x10000      // base address of firmware in Flash
+#define METADATA_BASE 0xFC00     // base address of version and firmware size in Flash
+#define FW_BASE 0x10000          // base address of firmware in Flash
+#define FW_CHECK_BASE 0x20000    // base address of incoming firmware in Flash
+#define FW_INCOMING_BASE 0x30000 // base address of incoming firmware in Flash
+
+#define FW_BASE_SIZE 0x10000 // size of FW BLOCK and FW CHECK //maybe off by one? double check
 
 // FLASH Constants
 #define FLASH_PAGESIZE 1024
@@ -53,9 +79,17 @@ uint8_t * fw_release_message_address;
 // Firmware Buffer
 unsigned char data[FLASH_PAGESIZE];
 
+RsaKey pub;
+int zero = 0;
+
 int main(void) {
 
     initialize_uarts(UART0);
+
+    wc_InitRsaKey(&pub, NULL);
+    wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
+
+    // wc_AesSetKey(Aes * ?firmware?, const byte * aes_key, word32 16, const byte * ?iv?, AES_ENCRYPTION)
 
     uart_write_str(UART0, "Welcome to the BWSI Vehicle Update Service!\n");
     uart_write_str(UART0, "Send \"U\" to update, and \"B\" to run the firmware.\n");
@@ -86,7 +120,7 @@ void load_firmware(void) {
     uint32_t rcv = 0;
 
     uint32_t data_index = 0;
-    uint32_t page_addr = FW_BASE;
+    uint32_t page_addr = FW_INCOMING_BASE;
     uint32_t version = 0;
     uint32_t size = 0;
 
@@ -124,6 +158,13 @@ void load_firmware(void) {
     program_flash((uint8_t *)METADATA_BASE, (uint8_t *)(&metadata), 4);
 
     uart_write(UART0, OK); // Acknowledge the metadata.
+
+    
+    //verify firmware
+    //bad -> stop
+    //ok -> copy from incoming to check
+
+    move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, FW_BASE_SIZE);
 }
 
 /*
@@ -175,7 +216,7 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 void boot_firmware(void) {
     // Check if firmware loaded
     int fw_present = 0;
-    for (uint8_t * i = (uint8_t *)FW_BASE; i < (uint8_t *)FW_BASE + 20; i++) {
+    for (uint8_t * i = (uint8_t *)FW_CHECK_BASE; i < (uint8_t *)FW_CHECK_BASE + 20; i++) {
         if (*i != 0xFF) {
             fw_present = 1;
         }
@@ -190,10 +231,21 @@ void boot_firmware(void) {
 
     // compute the release message address, and then print it
     uint16_t fw_size = *fw_size_address;
-    fw_release_message_address = (uint8_t *)(FW_BASE + fw_size);
+    fw_release_message_address = (uint8_t *)(FW_CHECK_BASE + fw_size);
     uart_write_str(UART0, (char *)fw_release_message_address);
 
-    // Boot the firmware
+    
+    //verify firmware
+    //bad -> stop clear
+    //ok -> continue
+
+    //aes decrypt and move to p1
+    //aes_decrypt_move();
+
+
+    
+    // run from FW_BASE
+    //  Boot the firmware
     __asm("LDR R0,=0x10001\n\t"
           "BX R0\n\t");
 }
@@ -222,3 +274,72 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
         uart_write_str(uart, " ");
     }
 }
+
+// erase from memory start index in length_in_kb nummber of 1kB chunks
+uint8_t erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
+    // erase flash memory starting from start and going length amount
+    for (uint32_t offset = 0; offset < length_in_kb; offset++){
+        if (FlashErase((uint32_t) (start_idx + (offset * 1024))) == -1){
+            // failed
+            return 0;
+        }
+    }
+    // all erased successfully
+    return 1;
+}
+
+// run on update after writing incoming FW to P3
+uint8_t check_firmware(uint32_t start_idx) {
+    //generate hash
+    
+    //verify hash 
+    
+    //ok ->  continue
+    //bad -> return -1 -> failed
+    
+    
+    //decrypt
+    
+    //ok ->  continue
+    //bad -> return -1 -> failed
+
+
+
+
+
+
+}
+
+// return 0 on success, 1 on fail, 2 on error
+uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint16_t payload_length) {
+    // hash the encrypted payload with SHA256
+    // decrypt the 256-byte long base with RSA pub key
+    // then compare the two
+    byte hash[256];
+    byte decry_sig_arr[256];
+    wc_Sha256Hash(&payload_idx, 256, hash);
+
+    int decry_sig_len = wc_RsaPSS_VerifyInline(signature_idx, payload_length, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+
+    if (wc_RsaPSS_CheckPadding(hash, 256, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256) == 0){
+        
+    }
+    // else if{
+        
+    // }
+    // else{
+        
+    // }
+}
+
+// TODO: add arguments for key, iv
+// make sure to do this in chunks
+uint8_t aes_decrypt_move(uint32_t payload_start, uint16_t length, uint32_t destination_idx) {
+    
+}
+
+void move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t length) {
+    memcpy(destination_idx, origin_idx, length);
+    erase_partition(origin_idx, length);
+}
+

@@ -35,15 +35,15 @@ def make_bootloader() -> bool:
 
 
 def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
-    
+
     # creating RSA keys
     rsa_key = RSA.generate(2048)
     rsa_private_key_pem = rsa_key.export_key('PEM').decode('utf-8')
     rsa_public_key_der = rsa_key.publickey().export_key('DER')
-    
+
     # creating AES key
     aes_key_hex = get_random_bytes(16).hex()
-    
+
     # storing both RSA private and AES keys in JSON for fw_protect
     secret_keys = {
         "rsa_private_key_pem": rsa_private_key_pem,
@@ -51,20 +51,24 @@ def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
     }
     with open(secret_keys_json_path, "w") as f:
         json.dump(secret_keys, f, indent=4)
-    print(f"RSA private key and AES key saved as json to {secret_keys_json_path}")
+    print(
+        f"RSA private key and AES key saved as json to {secret_keys_json_path}")
 
     # saving AES key under bootloader/inc/public_key.h header file for bootloader program
     with open(public_key_c_path, "w") as f:
         f.write("#define PUBLIC_KEY_H\n")
         f.write("#include <stdint.h>\n\n")
-        f.write("const uint8_t public_key_der[] = {" + ", ".join(f"0x{b:02x}" for b in rsa_public_key_der) + "};")
+        f.write("const uint8_t public_key_der[] = {" + ", ".join(
+            f"0x{b:02x}" for b in rsa_public_key_der) + "};\n")
+        f.write("const uint8_t aes_key[16] = {" + ", ".join(
+            f"0x{b:02x}" for b in bytes.fromhex(aes_key_hex)) + "};\n")
         f.write(
             f"const uint32_t public_key_der_len = {len(rsa_public_key_der)};\n")
 
 
 if __name__ == "__main__":
     generate_rsa_keys(PUBLIC_KEY_C_FILE_PATH, SECRET_BUILD_OUTPUT_PATH)
-    
+
     if make_bootloader():
         print("bl_build succeeded")
     else:

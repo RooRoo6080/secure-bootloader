@@ -4,9 +4,6 @@ for Reuel's mac
 cd tools
 python3 bl_build.py
 lm4flash ../bootloader/bin/bootloader.bin
-cd ../firmware
-make
-cd ../tools
 python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2"
 python3 fw_update.py --firmware ./firmware_protected.bin --port /dev/tty.usbmodem0E23BCDF1 --debug
 python3 -m serial.tools.miniterm /dev/tty.usbmodem0E23BCDF1 115200
