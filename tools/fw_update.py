@@ -34,9 +34,10 @@ RESP_OK = b"\x00"
 FRAME_SIZE = 256
 
 
+# TODO: BYTE ORDER ISSUES WITH HEADER PAYULOAD LENGTH AND VERSION. MIGHT BE EASIER TO CHANGE IN PYTHON
 def send_metadata(ser, metadata, debug=False):
-    assert(len(metadata) == 4)
-    version, size = struct.unpack('<HH', metadata)
+    assert(len(metadata) == 6)
+    size, version = struct.unpack('<LH', metadata)
     print(f"Version: {version}\nSize: {size} bytes\n")
 
     # Handshake for update
@@ -81,8 +82,8 @@ def update(ser, infile, debug):
     with open(infile, "rb") as fp:
         firmware_blob = fp.read()
 
-    metadata = firmware_blob[:4]
-    firmware = firmware_blob[4:]
+    metadata = firmware_blob[:6]
+    firmware = firmware_blob[6:]
 
     send_metadata(ser, metadata, debug=debug)
 

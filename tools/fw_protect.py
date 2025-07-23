@@ -10,10 +10,10 @@ Format of protected firmware output:
 -------------------------------------
 HEADER (unencrypted)
  - encrypted payload length (4 bytes)
+ - firmware version (2 bytes)
 PAYLOAD (AES encrypted)
  - firmware binary length (4 bytes)
  - message length (4 bytes)
- - firmware version (2 bytes)
  - firmware binary
  - message
  - padding required for AES
@@ -37,6 +37,7 @@ import hashlib
 import json
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
+from Crypto.Signature import pss
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -68,7 +69,6 @@ def protect_firmware(infile, outfile, version, message):
     payload = (
         struct.pack('<L', len(firmware_binary)) +
         struct.pack('<L', len(message_binary)) +
-        struct.pack('<H', version) +
         firmware_binary +
         message_binary
     )
@@ -89,6 +89,7 @@ def protect_firmware(infile, outfile, version, message):
     
     # header is just the length
     header = struct.pack('<L', len(encrypted_payload))
+    header += struct.pack('<H', version)
     
     to_sign = header + encrypted_payload
     
@@ -98,8 +99,8 @@ def protect_firmware(infile, outfile, version, message):
     
     # PKCS #1 v1.5 is simple and deterministic
     # can also use more complex, salted PSS for non-deterministic hashes
-    signer = pkcs1_15.new(rsa_private_key)
-    # signer = pss.new(private_key)
+    # signer = pkcs1_15.new(rsa_private_key)
+    signer = pss.new(rsa_private_key)
     
     signature = signer.sign(data_hash)
     print(f"signature: {signature.hex()}")

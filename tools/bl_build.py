@@ -14,6 +14,7 @@ import pathlib
 import subprocess
 import json
 from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent.absolute()
@@ -42,12 +43,14 @@ def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
     rsa_public_key_der = rsa_key.publickey().export_key('DER')
 
     # creating AES key
-    aes_key_hex = get_random_bytes(16).hex()
+    aes_key_hex = get_random_bytes(16)
+    cipher = AES.new(aes_key_hex, AES.MODE_CBC)
+    iv = cipher.iv
 
     # storing both RSA private and AES keys in JSON for fw_protect
     secret_keys = {
         "rsa_private_key_pem": rsa_private_key_pem,
-        "aes_key_hex": aes_key_hex
+        "aes_key_hex": aes_key_hex.hex()
     }
     with open(secret_keys_json_path, "w") as f:
         json.dump(secret_keys, f, indent=4)
@@ -61,9 +64,11 @@ def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
         f.write("const uint8_t public_key_der[] = {" + ", ".join(
             f"0x{b:02x}" for b in rsa_public_key_der) + "};\n")
         f.write("const uint8_t aes_key[16] = {" + ", ".join(
-            f"0x{b:02x}" for b in bytes.fromhex(aes_key_hex)) + "};\n")
+            f"0x{b:02x}" for b in bytes.fromhex(aes_key_hex.hex())) + "};\n")
         f.write(
             f"const uint32_t public_key_der_len = {len(rsa_public_key_der)};\n")
+        f.write("const uint8_t aes_iv[] = {" + ", ".join(
+            f"0x{b:02x}" for b in iv) + "};\n")
 
 
 if __name__ == "__main__":

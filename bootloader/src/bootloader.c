@@ -1,22 +1,20 @@
 // Copyright 2024 The MITRE Corporation. ALL RIGHTS RESERVED
 // Approved for public release. Distribution unlimited 23-02181-25.
 
-
 // Payload format
 // -------------------------------------
 // HEADER (unencrypted)
 //  - encrypted payload length (4 bytes)
+//  - firmware version (2 bytes)
 // PAYLOAD (AES encrypted)
 //  - firmware binary length (4 bytes)
 //  - message length (4 bytes)
-//  - firmware version (2 bytes)
 //  - firmware binary
 //  - message
 //  - padding required for AES
 // SIGNATURE (SHA hashed and RSA signed)
 //  - signature (256 bytes)
 // -------------------------------------
- 
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -25,6 +23,7 @@
 
 #include "bootloader.h"
 
+#include "wolfssl/wolfcrypt/aes.h"
 #include "wolfssl/wolfcrypt/rsa.h"
 #include "wolfssl/wolfcrypt/settings.h"
 #include "wolfssl/wolfcrypt/sha.h"
@@ -53,8 +52,8 @@ void boot_firmware(void);
 void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
 uint8_t erase_partition(uint32_t, uint8_t);
 uint8_t check_firmware(uint32_t);
-uint8_t verify_signature(uint32_t, uint32_t, uint16_t);
-uint8_t aes_decrypt_move(uint32_t, uint16_t, uint32_t);
+uint8_t verify_signature(uint32_t, uint32_t, uint32_t);
+uint8_t aes_decrypt_move(uint32_t, uint16_t, uint32_t, byte *, byte *);
 void move_firmware(uint32_t, uint32_t, uint16_t);
 
 // Firmware Constants
@@ -86,9 +85,6 @@ int main(void) {
 
     initialize_uarts(UART0);
 
-    wc_InitRsaKey(&pub, NULL);
-    wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
-
     // wc_AesSetKey(Aes * ?firmware?, const byte * aes_key, word32 16, const byte * ?iv?, AES_ENCRYPTION)
 
     uart_write_str(UART0, "Welcome to the BWSI Vehicle Update Service!\n");
@@ -114,6 +110,8 @@ int main(void) {
 /*
  * Load the firmware into flash.
  */
+
+// TODO: BYTE ORDER ISSUES WITH HEADER PAYULOAD LENGTH AND VERSION. MIGHT BE EASIER TO CHANGE IN PYTHON
 void load_firmware(void) {
     int frame_length = 0;
     int read = 0;
@@ -124,17 +122,37 @@ void load_firmware(void) {
     uint32_t version = 0;
     uint32_t size = 0;
 
+    // get size
+    rcv = uart_read(UART0, BLOCKING, &read);
+    data[data_index] = rcv;
+    data_index++;
+    size = (uint32_t)rcv;
+
+    rcv = uart_read(UART0, BLOCKING, &read);
+    data[data_index] = rcv;
+    data_index++;
+    size |= (uint32_t)rcv << 8;
+
+    rcv = uart_read(UART0, BLOCKING, &read);
+    data[data_index] = rcv;
+    data_index++;
+    size |= (uint32_t)rcv << 16;
+
+    rcv = uart_read(UART0, BLOCKING, &read);
+    data[data_index] = rcv;
+    data_index++;
+    size |= (uint32_t)rcv << 24;
+
     // Get version.
     rcv = uart_read(UART0, BLOCKING, &read);
+    data[data_index] = rcv;
+    data_index++;
     version = (uint32_t)rcv;
-    rcv = uart_read(UART0, BLOCKING, &read);
-    version |= (uint32_t)rcv << 8;
 
-    // Get size.
     rcv = uart_read(UART0, BLOCKING, &read);
-    size = (uint32_t)rcv;
-    rcv = uart_read(UART0, BLOCKING, &read);
-    size |= (uint32_t)rcv << 8;
+    data[data_index] = rcv;
+    data_index++;
+    version |= (uint32_t)rcv << 8;
 
     // Compare to old version and abort if older (note special case for version 0).
     // If no metadata available (0xFFFF), accept version 1
@@ -154,17 +172,56 @@ void load_firmware(void) {
 
     // Write new firmware size and version to Flash
     // Create 32 bit word for flash programming, version is at lower address, size is at higher address
-    uint32_t metadata = ((size & 0xFFFF) << 16) | (version & 0xFFFF);
-    program_flash((uint8_t *)METADATA_BASE, (uint8_t *)(&metadata), 4);
+    // uint32_t metadata = ((size & 0xFFFF) << 16) | (version & 0xFFFF);
+    // program_flash((uint8_t *)FW_INCOMING_BASE, (uint8_t *)(&metadata), 4);
 
     uart_write(UART0, OK); // Acknowledge the metadata.
 
-    
-    //verify firmware
-    //bad -> stop
-    //ok -> copy from incoming to check
+    // TODO: MAKE THIS READ & FLASH IN CHUNKS
+    // SO WE DONT HAVE TO STORE 30KB OF DATA IN RAM
 
-    move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, FW_BASE_SIZE);
+    while (1) {
+
+        // Get two bytes for the length.
+        rcv = uart_read(UART0, BLOCKING, &read);
+        frame_length = (uint32_t)rcv;
+        rcv = uart_read(UART0, BLOCKING, &read);
+        frame_length |= (uint32_t)rcv << 8;
+
+        // Get the number of bytes specified
+        for (int i = 0; i < frame_length; ++i) {
+            data[data_index] = uart_read(UART0, BLOCKING, &read);
+            data_index += 1;
+        } // for
+
+        // If we filed our page buffer, program it
+        if (data_index == FLASH_PAGESIZE || frame_length == 0) {
+            // Try to write flash and check for error
+            if (program_flash((uint8_t *)page_addr, data, data_index)) {
+                uart_write(UART0, ERROR); // Reject the firmware
+                SysCtlReset();            // Reset device
+                return;
+            }
+
+            // Update to next page
+            page_addr += FLASH_PAGESIZE;
+            data_index = 0;
+
+            // If at end of firmware, go to main
+            if (frame_length == 0) {
+                uart_write(UART0, OK);
+                break;
+            }
+        } // if
+
+        uart_write(UART0, OK); // Acknowledge the frame.
+    } // while(1)
+
+    if (verify_signature(FW_INCOMING_BASE + 4 + 2 + size, FW_INCOMING_BASE + 4 + 2, size)) {
+        erase_partition(FW_INCOMING_BASE, 64);
+    } else {
+        move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, FW_BASE_SIZE);
+    }
 }
 
 /*
@@ -230,23 +287,26 @@ void boot_firmware(void) {
     }
 
     // compute the release message address, and then print it
-    uint16_t fw_size = *fw_size_address;
-    fw_release_message_address = (uint8_t *)(FW_CHECK_BASE + fw_size);
-    uart_write_str(UART0, (char *)fw_release_message_address);
+    uint16_t fw_size = *(uint16_t *)FW_CHECK_BASE;
 
-    
-    //verify firmware
-    //bad -> stop clear
-    //ok -> continue
+    // WE'LL IMPLEMENT THIS LATER LOL
+    // fw_release_message_address = (uint8_t *)(FW_CHECK_BASE + fw_size);
+    // uart_write_str(UART0, (char *)fw_release_message_address);
 
-    //aes decrypt and move to p1
-    //aes_decrypt_move();
+    // verify firmware
+    // bad -> stop clear
+    // ok -> continue
+    if (check_firmware(FW_CHECK_BASE) == 1) {
+        SysCtlReset();
+    }
 
+    // aes decrypt and move to p1
+    // aes_decrypt_move(FW_CHECK_BASE + 6, fw_size, FW_BASE + 0, &aes_key, &aes_iv);
 
-    
     // run from FW_BASE
     //  Boot the firmware
-    __asm("LDR R0,=0x10001\n\t"
+
+    __asm("LDR R0,=0x1000F\n\t"
           "BX R0\n\t");
 }
 
@@ -278,8 +338,8 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
 // erase from memory start index in length_in_kb nummber of 1kB chunks
 uint8_t erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
     // erase flash memory starting from start and going length amount
-    for (uint32_t offset = 0; offset < length_in_kb; offset++){
-        if (FlashErase((uint32_t) (start_idx + (offset * 1024))) == -1){
+    for (uint32_t offset = 0; offset < length_in_kb; offset++) {
+        if (FlashErase((uint32_t)(start_idx + (offset * 1024))) == -1) {
             // failed
             return 0;
         }
@@ -290,56 +350,74 @@ uint8_t erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
 
 // run on update after writing incoming FW to P3
 uint8_t check_firmware(uint32_t start_idx) {
-    //generate hash
-    
-    //verify hash 
-    
-    //ok ->  continue
-    //bad -> return -1 -> failed
-    
-    
-    //decrypt
-    
-    //ok ->  continue
-    //bad -> return -1 -> failed
-
-
-
-
-
-
+    // what do we need to do?
+    //  run verify signature
+    uint32_t payload_length = *(uint32_t *)start_idx;
+    if (verify_signature(start_idx + 2 + payload_length, start_idx + 6, payload_length)) {
+        return 1;
+    }
+    uint16_t new_version = *(uint16_t *)(start_idx + 4);
+    uint16_t curr_version = *(uint16_t *)(FW_CHECK_BASE + 4);
+    if (new_version > curr_version || new_version == 0) {
+        move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, payload_length);
+    } else {
+        return 1;
+    }
+    // check version #
+    // thats it for now
+    // how to check version number
+    // and what parameters do we use
+    // confused-ing
+    return 0;
 }
 
-// return 0 on success, 1 on fail, 2 on error
-uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint16_t payload_length) {
+// return 0 on success, 1 on fail and error
+uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length) {
     // hash the encrypted payload with SHA256
     // decrypt the 256-byte long base with RSA pub key
     // then compare the two
+    wc_InitRsaKey(&pub, NULL);
+    wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
+
     byte hash[256];
     byte decry_sig_arr[256];
     wc_Sha256Hash(&payload_idx, 256, hash);
 
-    int decry_sig_len = wc_RsaPSS_VerifyInline(signature_idx, payload_length, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
-
-    if (wc_RsaPSS_CheckPadding(hash, 256, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256) == 0){
-        
+    int decry_sig_len = wc_RsaPSS_VerifyInline(&signature_idx, (word32)payload_length, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+    int result = wc_RsaPSS_CheckPadding(hash, 256, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
+    if (result == 0) {
+        return 0;
     }
-    // else if{
-        
-    // }
-    // else{
-        
-    // }
+    return 1;
 }
 
-// TODO: add arguments for key, iv
-// make sure to do this in chunks
-uint8_t aes_decrypt_move(uint32_t payload_start, uint16_t length, uint32_t destination_idx) {
-    
+uint8_t aes_decrypt_move(uint32_t payload_start, uint16_t length, uint32_t destination_idx, byte * key, byte * iv) {
+    //     Aes aes;
+
+    //     // set up aes key, if fail then return 1
+    //     if (wc_AesSetKey(&aes, aes_key, AES_BLOCK_SIZE, iv, AES_DECRYPTION) != 0) {
+    return 1;
+    // a    }
+    // es_?
+
+    // wc_AesSetIV(aes_key, aes_iv);    // decrypt t&o dna?tion
+    // for (uint32_t i = 0; i < length; i += AES_BLOCK_SIZE) {
+    // copy encrypted block from flash to ram buffer
+    //     memcpy((void*) data, (void*) (payload_start + i), AES_BLOCK_SIZE);
+    // decrypt block
+    //     // if (wc_AESDecryptDirect(&aes, (void*) (data), data) != 0)
+    //     {
+    //     //     // fails
+    //     //     return 1;
+    //     }
+    //     //  //move to destination
+    //     // memcpy((void*) (destination_idx + i), (void*) (data), AES_BLOCK_SIZE);
+    // }
+
+    return 0; // success!
 }
 
 void move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t length) {
-    memcpy(destination_idx, origin_idx, length);
-    erase_partition(origin_idx, length);
+    memcpy((void *)(destination_idx), (void *)(origin_idx), length);
+    erase_partition(origin_idx, length / 1024);
 }
-
