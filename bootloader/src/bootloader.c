@@ -217,10 +217,13 @@ void load_firmware(void) {
         uart_write(UART0, OK); // Acknowledge the frame.
     } // while(1)
 
-    if (verify_signature(FW_INCOMING_BASE + 4 + 2 + size, FW_INCOMING_BASE + 4 + 2, size)) {
-        erase_partition(FW_INCOMING_BASE, 64);
+    uint32_t sign_add = FW_INCOMING_BASE + 4 + 2 + size;
+    uint32_t payload_idx = FW_INCOMING_BASE + 4 + 2;
+
+    if (verify_signature(&sign_add, &payload_idx, size)) {
+        erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
     } else {
-        move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, FW_BASE_SIZE);
+        move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
     }
 }
 
@@ -296,7 +299,7 @@ void boot_firmware(void) {
     // verify firmware
     // bad -> stop clear
     // ok -> continue
-    if (check_firmware(FW_CHECK_BASE) == 1) {
+    if (check_firmware((uint32_t *) FW_CHECK_BASE) == 1) {
         SysCtlReset();
     }
 
@@ -339,7 +342,9 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
 uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
     // erase flash memory starting from start and going length amount
     for (uint32_t offset = 0; offset < length_in_kb; offset++) {
-        if (FlashErase((uint32_t)(start_idx + (offset * 1024))) == -1) {
+
+        uint32_t* erase_address = (start_idx + (offset * 1024));
+        if (FlashErase(*(erase_address)) == -1) {
             // failed
             return 0;
         }
@@ -352,14 +357,16 @@ uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
 uint8_t check_firmware(uint32_t * start_idx) {
     // what do we need to do?
     //  run verify signature
-    uint32_t payload_length = start_idx; //this is wrong maybe right????
-    if (verify_signature(start_idx + 2 + payload_length, start_idx + 6, payload_length)) {
+    uint32_t payload_length = *start_idx; // this is wrong maybe right????
+    uint32_t * sign_add = start_idx + 2 + payload_length;
+    uint32_t * payload_idx = start_idx + 6;
+    if (verify_signature(sign_add, payload_idx, payload_length)) {
         return 1;
     }
     uint16_t new_version = *(uint16_t *)(start_idx + 4);
     uint16_t curr_version = *(uint16_t *)(FW_CHECK_BASE + 4);
     if (new_version > curr_version || new_version == 0) {
-        move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, payload_length);
+        move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, payload_length);
     } else {
         return 1;
     }
@@ -380,11 +387,11 @@ uint8_t verify_signature(uint32_t * signature_idx, uint32_t * payload_idx, uint3
     wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
 
     byte hash[256];
-    byte* decry_sig_arr[256];
-    wc_Sha256Hash((byte) payload_idx, 256, hash);
+    byte * decry_sig_arr[256];
+    wc_Sha256Hash((byte *)&payload_idx, 256, hash);
 
-    int decry_sig_len = wc_RsaPSS_VerifyInline(signature_idx, (word32)payload_length, * decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
-    int result = wc_RsaPSS_CheckPadding(hash, 256, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
+    int decry_sig_len = wc_RsaPSS_VerifyInline((byte *)&signature_idx, (word32)payload_length, decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+    int result = wc_RsaPSS_CheckPadding(hash, 256, *decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
     if (result == 0) {
         return 0;
     }
@@ -392,25 +399,23 @@ uint8_t verify_signature(uint32_t * signature_idx, uint32_t * payload_idx, uint3
 }
 
 uint8_t aes_decrypt_move(uint32_t * payload_start, uint16_t length, uint32_t * destination_idx, byte * key, byte * iv) {
-    
+
     Aes aes;
     uint8_t ret;
 
-    if(length % AES_BLOCK_SIZE != 0) {
+    if (length % AES_BLOCK_SIZE != 0) {
         return 1;
     }
 
-    ret = wc_AesSetKey(&aes, key, sizeof(key), iv, AES_DECRYPTION);
+    ret = wc_AesSetKey(&aes, key, sizeof(*key), iv, AES_DECRYPTION);
 
-    if(ret != 0) 
-    {
+    if (ret != 0) {
         return 1;
     }
 
-    ret = wc_AesCbcDecrypt(&aes, payload_start, destination_idx, length);
+    ret = wc_AesCbcDecrypt(&aes, (byte *)&destination_idx, (byte *)&payload_start, length); // I think we need to flip
 
-    if(ret != 0) 
-    {
+    if (ret != 0) {
         return 1;
     }
 
