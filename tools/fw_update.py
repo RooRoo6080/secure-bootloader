@@ -91,7 +91,7 @@ def update(ser, infile, debug):
         data = firmware[frame_start : frame_start + FRAME_SIZE]
 
         # Construct frame.
-        frame = struct.pack('>H', len(data)) + data
+        frame = struct.pack('<H', len(data)) + data
 
         send_frame(ser, frame, debug=debug)
         print(f"Wrote frame {idx} ({len(frame)} bytes)")
