@@ -50,11 +50,11 @@
 void load_firmware(void);
 void boot_firmware(void);
 void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
-uint8_t erase_partition(uint32_t, uint8_t);
-uint8_t check_firmware(uint32_t);
-uint8_t verify_signature(uint32_t, uint32_t, uint32_t);
-uint8_t aes_decrypt_move(uint32_t, uint16_t, uint32_t, byte *, byte *);
-void move_firmware(uint32_t, uint32_t, uint16_t);
+uint8_t erase_partition(uint32_t *, uint8_t);
+uint8_t check_firmware(uint32_t *);
+uint8_t verify_signature(uint32_t *, uint32_t *, uint32_t);
+uint8_t aes_decrypt_move(uint32_t *, uint16_t, uint32_t *, byte *, byte *);
+void move_firmware(uint32_t *, uint32_t *, uint16_t);
 
 // Firmware Constants
 #define METADATA_BASE 0xFC00     // base address of version and firmware size in Flash
@@ -336,7 +336,7 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
 }
 
 // erase from memory start index in length_in_kb nummber of 1kB chunks
-uint8_t erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
+uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
     // erase flash memory starting from start and going length amount
     for (uint32_t offset = 0; offset < length_in_kb; offset++) {
         if (FlashErase((uint32_t)(start_idx + (offset * 1024))) == -1) {
@@ -349,10 +349,10 @@ uint8_t erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
 }
 
 // run on update after writing incoming FW to P3
-uint8_t check_firmware(uint32_t start_idx) {
+uint8_t check_firmware(uint32_t * start_idx) {
     // what do we need to do?
     //  run verify signature
-    uint32_t payload_length = *(uint32_t *)start_idx;
+    uint32_t payload_length = start_idx; //this is wrong maybe right????
     if (verify_signature(start_idx + 2 + payload_length, start_idx + 6, payload_length)) {
         return 1;
     }
@@ -372,7 +372,7 @@ uint8_t check_firmware(uint32_t start_idx) {
 }
 
 // return 0 on success, 1 on fail and error
-uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length) {
+uint8_t verify_signature(uint32_t * signature_idx, uint32_t * payload_idx, uint32_t payload_length) {
     // hash the encrypted payload with SHA256
     // decrypt the 256-byte long base with RSA pub key
     // then compare the two
@@ -380,10 +380,10 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
 
     byte hash[256];
-    byte decry_sig_arr[256];
-    wc_Sha256Hash(&payload_idx, 256, hash);
+    byte* decry_sig_arr[256];
+    wc_Sha256Hash((byte) payload_idx, 256, hash);
 
-    int decry_sig_len = wc_RsaPSS_VerifyInline(&signature_idx, (word32)payload_length, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+    int decry_sig_len = wc_RsaPSS_VerifyInline(signature_idx, (word32)payload_length, * decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
     int result = wc_RsaPSS_CheckPadding(hash, 256, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
     if (result == 0) {
         return 0;
@@ -391,33 +391,33 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     return 1;
 }
 
-uint8_t aes_decrypt_move(uint32_t payload_start, uint16_t length, uint32_t destination_idx, byte * key, byte * iv) {
-    //     Aes aes;
+uint8_t aes_decrypt_move(uint32_t * payload_start, uint16_t length, uint32_t * destination_idx, byte * key, byte * iv) {
+    
+    Aes aes;
+    uint8_t ret;
 
-    //     // set up aes key, if fail then return 1
-    //     if (wc_AesSetKey(&aes, aes_key, AES_BLOCK_SIZE, iv, AES_DECRYPTION) != 0) {
-    return 1;
-    // a    }
-    // es_?
+    if(length % AES_BLOCK_SIZE != 0) {
+        return 1;
+    }
 
-    // wc_AesSetIV(aes_key, aes_iv);    // decrypt t&o dna?tion
-    // for (uint32_t i = 0; i < length; i += AES_BLOCK_SIZE) {
-    // copy encrypted block from flash to ram buffer
-    //     memcpy((void*) data, (void*) (payload_start + i), AES_BLOCK_SIZE);
-    // decrypt block
-    //     // if (wc_AESDecryptDirect(&aes, (void*) (data), data) != 0)
-    //     {
-    //     //     // fails
-    //     //     return 1;
-    //     }
-    //     //  //move to destination
-    //     // memcpy((void*) (destination_idx + i), (void*) (data), AES_BLOCK_SIZE);
-    // }
+    ret = wc_AesSetKey(&aes, key, sizeof(key), iv, AES_DECRYPTION);
+
+    if(ret != 0) 
+    {
+        return 1;
+    }
+
+    ret = wc_AesCbcDecrypt(&aes, payload_start, destination_idx, length);
+
+    if(ret != 0) 
+    {
+        return 1;
+    }
 
     return 0; // success!
 }
 
-void move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t length) {
-    memcpy((void *)(destination_idx), (void *)(origin_idx), length);
+void move_firmware(uint32_t * origin_idx, uint32_t * destination_idx, uint16_t length) {
+    memcpy(destination_idx, origin_idx, length);
     erase_partition(origin_idx, length / 1024);
 }
