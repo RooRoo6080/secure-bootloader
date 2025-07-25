@@ -84,6 +84,8 @@ def protect_firmware(infile, outfile, version, message):
     cipher = AES.new(aes_key, AES.MODE_CBC)
     padded_payload = pad(payload, AES.block_size)
     encrypted_payload = cipher.encrypt(padded_payload)
+    
+    encrypted_payload = payload
 
     print(f"blob size after encryption: {len(encrypted_payload)}")
     

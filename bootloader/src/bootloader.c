@@ -51,10 +51,10 @@ void load_firmware(void);
 void boot_firmware(void);
 void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
 uint8_t erase_partition(uint32_t *, uint8_t);
-uint8_t check_firmware(uint32_t *);
-uint8_t verify_signature(uint32_t *, uint32_t *, uint32_t);
+// uint8_t check_firmware(uint32_t *);
+uint8_t verify_signature(uint32_t, uint32_t, uint32_t);
 uint8_t aes_decrypt_move(uint32_t *, uint16_t, uint32_t *, byte *, byte *);
-// void move_firmware(uint32_t *, uint32_t *, uint16_t);
+uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 
 // Firmware Constants
 #define METADATA_BASE 0xFC00     // base address of version and firmware size in Flash
@@ -82,6 +82,7 @@ RsaKey pub;
 int zero = 0;
 byte hash[32];
 byte* decry_sig_arr;
+byte signature_buffer[256];
 
 int main(void) {
 
@@ -294,17 +295,25 @@ void boot_firmware(void) {
     nl(UART0);
 
 
-    if (verify_signature(&sign_add, &payload_idx, size + 6) == 1) {
+    if (verify_signature(sign_add, payload_idx, size + 6) == 1) {
         uart_write_str(UART0, "fail");
         // erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
     } else {
         uart_write_str(UART0, "success");
         // move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
     }
-    uart_write_str(UART0, "skipped");
+
+    if (move_firmware(FW_INCOMING_BASE, FW_BASE, 32)) {
+        uart_write_str(UART0, "failed moving fw");
+    }
+
+    nl(UART0);
+    uart_write_hex_bytes(UART0, (uint8_t *) FW_BASE, 200);
+    nl(UART0);
+
     // Check if firmware loaded
     int fw_present = 0;
-    for (uint8_t * i = (uint8_t *)FW_CHECK_BASE; i < (uint8_t *)FW_CHECK_BASE + 20; i++) {
+    for (uint8_t * i = (uint8_t *)FW_BASE; i < (uint8_t *)FW_BASE + 20; i++) {
         if (*i != 0xFF) {
             fw_present = 1;
         }
@@ -318,7 +327,7 @@ void boot_firmware(void) {
     }
 
     // compute the release message address, and then print it
-    uint16_t fw_size = *(uint16_t *)FW_CHECK_BASE;
+    // uint16_t fw_size = *(uint16_t *)FW_CHECK_BASE;
 
     // WE'LL IMPLEMENT THIS LATER LOL
     // fw_release_message_address = (uint8_t *)(FW_CHECK_BASE + fw_size);
@@ -326,16 +335,18 @@ void boot_firmware(void) {
 
     // verify firmware
     // bad -> stop clear
-    // ok -> continue
-    if (check_firmware((uint32_t *)FW_CHECK_BASE) == 1) {
-        SysCtlReset();
-    }
+    // // ok -> continue
+    // if (check_firmware((uint32_t *)FW_CHECK_BASE) == 1) {
+    //     SysCtlReset();
+    // }
 
     // aes decrypt and move to p1
     // aes_decrypt_move(FW_CHECK_BASE + 6, fw_size, FW_BASE + 0, &aes_key, &aes_iv);
 
     // run from FW_BASE
     //  Boot the firmware
+
+    uart_write_str(UART0, "here goes");
 
     __asm("LDR R0,=0x1000F\n\t"
           "BX R0\n\t");
@@ -369,45 +380,45 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
 // erase from memory start index in length_in_kb nummber of 1kB chunks
 uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
     // erase flash memory starting from start and going length amount
-    for (uint32_t offset = 0; offset < length_in_kb; offset++) {
+    // for (uint32_t offset = 0; offset < length_in_kb; offset++) {
 
-        uint32_t* erase_address = (start_idx + (offset * 1024));
-        if (FlashErase(*(erase_address)) == -1) {
-            // failed
-            return 1;
-        }
-    }
+    //     uint32_t* erase_address = (start_idx + (offset * 1024));
+    //     if (FlashErase(*(erase_address)) == -1) {
+    //         // failed
+    //         return 1;
+    //     }
+    // }
     // all erased successfully
     return 0;
 }
 
 // run on update after writing incoming FW to P3
-uint8_t check_firmware(uint32_t * start_idx) {
-    // what do we need to do?
-    //  run verify signature
-    uint32_t payload_length = *(int *)start_idx + 6; // this is wrong maybe right????
-    uint32_t * sign_add = start_idx + 2 + payload_length;
-    uint32_t * payload_idx = start_idx;
-    if (verify_signature(sign_add, payload_idx, payload_length)) {
-        return 1;
-    }
-    uint16_t new_version = *(uint16_t *)(start_idx + 4);
-    uint16_t curr_version = *(uint16_t *)(FW_CHECK_BASE + 4);
-    if (new_version > curr_version || new_version == 0) {
-        // move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, payload_length);
-    } else {
-        return 1;
-    }
-    // check version #
-    // thats it for now
-    // how to check version number
-    // and what parameters do we use
-    // confused-ing
-    return 0;
-}
+// uint8_t check_firmware(uint32_t * start_idx) {
+//     // what do we need to do?
+//     //  run verify signature
+//     uint32_t payload_length = *(int *)start_idx + 6; // this is wrong maybe right????
+//     uint32_t * sign_add = start_idx + 2 + payload_length;
+//     uint32_t * payload_idx = start_idx;
+//     if (verify_signature(sign_add, payload_idx, payload_length)) {
+//         return 1;
+//     }
+//     uint16_t new_version = *(uint16_t *)(start_idx + 4);
+//     uint16_t curr_version = *(uint16_t *)(FW_CHECK_BASE + 4);
+//     if (new_version > curr_version || new_version == 0) {
+//         // move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, payload_length);
+//     } else {
+//         return 1;
+//     }
+//     // check version #
+//     // thats it for now
+//     // how to check version number
+//     // and what parameters do we use
+//     // confused-ing
+//     return 0;
+// }
 
 // return 0 on success, 1 on fail and error
-uint8_t verify_signature(uint32_t *signature_idx, uint32_t * payload_idx, uint32_t payload_length) {
+uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length) {
     // hash the encrypted payload with SHA256
     // decrypt the 256-byte long base with RSA pub key
     // then compare the two
@@ -420,15 +431,25 @@ uint8_t verify_signature(uint32_t *signature_idx, uint32_t * payload_idx, uint32
     nl(UART0);
     uart_write_str(UART0, hash);
     nl(UART0);
-    uart_write_str(UART0, (char *) signature_idx);
+    uart_write_hex(UART0, signature_idx);
     nl(UART0);
+    uart_write_hex(UART0, payload_idx);
+    nl(UART0);
+    // uart_write_hex_bytes(UART0, (uint8_t *) signature_idx, 256);
+    // nl(UART0);
+    // uart_write_hex_bytes(UART0, (uint8_t *) payload_idx, payload_length);
+    // nl(UART0);
 
-    int decry_sig_len = wc_RsaPSS_VerifyInline((byte *)signature_idx, 256, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+    memcpy(signature_buffer, (byte *) signature_idx, 256);
+    uart_write_hex_bytes(UART0, signature_buffer, 256);
+    nl(UART0);
+    int decry_sig_len = wc_RsaPSS_VerifyInline(signature_buffer, 256, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
     if(decry_sig_len > 0){
         uart_write_str(UART0, "successful verification");
     }
     else{
         uart_write_str(UART0, "decry_sig_len < 0, failed verification");
+        uart_write_hex(UART0, decry_sig_len);
         return 1;
     }
 
@@ -466,32 +487,32 @@ uint8_t aes_decrypt_move(uint32_t * payload_start, uint16_t length, uint32_t * d
     return 0; // success!
 }
 
-// uint8_t move_firmware(uint32_t * origin_idx, uint32_t * destination_idx, uint16_t length) {
-//     // memcpy(destination_idx, origin_idx, length);
+uint8_t move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t length_in_kb) {
+    // memcpy(destination_idx, origin_idx, length);
 
-//     // for (uint32_t offset = 0; offset < (length/1024); offset++) {
+    // for (uint32_t offset = 0; offset < (length/1024); offset++) {
 
-//     //     uint32_t* erase_address = (destination_idx + (offset * 1024));
-//     //     if (FlashErase(*(erase_address)) == -1) {
-//     //         // failed
-//     //         return 0;
-//     //     }
-//     // }
+    //     uint32_t* erase_address = (destination_idx + (offset * 1024));
+    //     if (FlashErase(*(erase_address)) == -1) {
+    //         // failed
+    //         return 0;
+    //     }
+    // }
 
     
-//     for (uint32_t offset = 0; offset < (length/1024); offset++) {
+    for (uint32_t offset = 0; offset < (length_in_kb); offset++) {
 
-//         uint32_t* page_address = (destination_idx + (offset * 1024));
-//         if (program_flash((uint8_t *) page_address, origin_idx, 1024) == -1) {
-//             // failed
-//             return 1;
-//         }
-//     }
+        uint32_t page_address = (destination_idx + (offset * 1024));
+        if (program_flash((uint32_t *) page_address, (unsigned char *) origin_idx, 1024) == -1) {
+            // failed
+            return 1;
+        }
+    }
 
 
 
-//     // program_flash();s
-//     erase_partition(origin_idx, length / 1024);
+    // program_flash();s
+    // erase_partition(origin_idx, length / 1024);
 
-//     return 0;
-// }
+    return 0;
+}
