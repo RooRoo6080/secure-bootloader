@@ -116,6 +116,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ser = serial.Serial(args.port, 115200)
+    # ser.timeout = 1.0
 
     update(ser=ser, infile=args.firmware, debug=args.debug)
     ser.close()

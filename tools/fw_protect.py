@@ -18,7 +18,7 @@ PAYLOAD (AES encrypted)
  - message
  - padding required for AES
 SIGNATURE (SHA hashed and RSA signed)
- - signature (256 bytes)
+ - signature of header + payload (256 bytes)
 -------------------------------------
  
 Standards used:

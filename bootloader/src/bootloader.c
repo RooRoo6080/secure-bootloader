@@ -13,7 +13,7 @@
 //  - message
 //  - padding required for AES
 // SIGNATURE (SHA hashed and RSA signed)
-//  - signature (256 bytes)
+//  - signature of header + payload (256 bytes)
 // -------------------------------------
 
 #include <stdbool.h>
@@ -54,7 +54,7 @@ uint8_t erase_partition(uint32_t *, uint8_t);
 uint8_t check_firmware(uint32_t *);
 uint8_t verify_signature(uint32_t *, uint32_t *, uint32_t);
 uint8_t aes_decrypt_move(uint32_t *, uint16_t, uint32_t *, byte *, byte *);
-void move_firmware(uint32_t *, uint32_t *, uint16_t);
+// void move_firmware(uint32_t *, uint32_t *, uint16_t);
 
 // Firmware Constants
 #define METADATA_BASE 0xFC00     // base address of version and firmware size in Flash
@@ -219,17 +219,17 @@ void load_firmware(void) {
         uart_write(UART0, OK); // Acknowledge the frame.
     } // while(1)
 
-    uint32_t sign_add = FW_INCOMING_BASE + 4 + 2 + size;
-    uint32_t payload_idx = FW_INCOMING_BASE;
-    uart_write_str(UART0, "hello");
+    // uint32_t sign_add = *(uint32_t *) FW_INCOMING_BASE + 4 + 2 + size;
+    // uint32_t payload_idx = FW_INCOMING_BASE;
+    // uart_write_str(UART0, "hello0");
 
-    if (check_firmware((uint32_t *)FW_INCOMING_BASE) == 0) {
-        uart_write_str(UART0, "nice");
-    }
-    uart_write_str(UART0, "fail");
+    // if (check_firmware((uint32_t *)FW_INCOMING_BASE) == 0) {
+    //     uart_write_str(UART0, "nice");
+    // }
+    // uart_write_str(UART0, "fail");
 
     // if (verify_signature(&sign_add, &payload_idx, size + 6)) {
-    //     erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
+    //     erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)32);
     // } else {
     //     move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
     // }
@@ -282,16 +282,26 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 }
 
 void boot_firmware(void) {
-    uint32_t size = *(int *)FW_INCOMING_BASE;
-    uint32_t sign_add = FW_INCOMING_BASE + 4 + 2 + size;
-    uint32_t payload_idx = FW_INCOMING_BASE;
-    uart_write_str(UART0, "hello");
+    uint32_t size = *(uint32_t *) FW_INCOMING_BASE;
+    uint32_t* sign_add = (uint32_t*)((uint8_t*) FW_INCOMING_BASE + 6 + size);
+    uint32_t* payload_idx = (uint32_t*)FW_INCOMING_BASE;
+    uart_write_str(UART0, "helloboot\n");
+    uart_write(UART0, size);
+    nl(UART0);
+    uart_write(UART0, *sign_add);
+    nl(UART0);
+    uart_write(UART0, *payload_idx);
+    nl(UART0);
 
-    if (verify_signature(&sign_add, &payload_idx, size + 6)) {
-        erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
+
+    if (verify_signature(sign_add, payload_idx, size + 6) == 1) {
+        uart_write_str(UART0, "fail");
+        // erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
     } else {
-        move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
+        uart_write_str(UART0, "success");
+        // move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
     }
+    uart_write_str(UART0, "skipped");
     // Check if firmware loaded
     int fw_present = 0;
     for (uint8_t * i = (uint8_t *)FW_CHECK_BASE; i < (uint8_t *)FW_CHECK_BASE + 20; i++) {
@@ -359,16 +369,16 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
 // erase from memory start index in length_in_kb nummber of 1kB chunks
 uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
     // erase flash memory starting from start and going length amount
-    // for (uint32_t offset = 0; offset < length_in_kb; offset++) {
+    for (uint32_t offset = 0; offset < length_in_kb; offset++) {
 
-    //     uint32_t* erase_address = (start_idx + (offset * 1024));
-    //     if (FlashErase(*(erase_address)) == -1) {
-    //         // failed
-    //         return 0;
-    //     }
-    // }
-    // // all erased successfully
-    // return 1;
+        uint32_t* erase_address = (start_idx + (offset * 1024));
+        if (FlashErase(*(erase_address)) == -1) {
+            // failed
+            return 1;
+        }
+    }
+    // all erased successfully
+    return 0;
 }
 
 // run on update after writing incoming FW to P3
@@ -384,7 +394,7 @@ uint8_t check_firmware(uint32_t * start_idx) {
     uint16_t new_version = *(uint16_t *)(start_idx + 4);
     uint16_t curr_version = *(uint16_t *)(FW_CHECK_BASE + 4);
     if (new_version > curr_version || new_version == 0) {
-        move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, payload_length);
+        // move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, payload_length);
     } else {
         return 1;
     }
@@ -397,11 +407,12 @@ uint8_t check_firmware(uint32_t * start_idx) {
 }
 
 // return 0 on success, 1 on fail and error
-uint8_t verify_signature(uint32_t * signature_idx, uint32_t * payload_idx, uint32_t payload_length) {
+uint8_t verify_signature(uint32_t *signature_idx, uint32_t * payload_idx, uint32_t payload_length) {
     // hash the encrypted payload with SHA256
     // decrypt the 256-byte long base with RSA pub key
     // then compare the two
     uart_write_str(UART0, "hello1");
+    uart_write(UART0, payload_length);
     wc_InitRsaKey(&pub, NULL);
     wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
     uart_write_str(UART0, "2");
@@ -412,6 +423,7 @@ uint8_t verify_signature(uint32_t * signature_idx, uint32_t * payload_idx, uint3
     int decry_sig_len = wc_RsaPSS_VerifyInline((byte *)&signature_idx, 256, decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
 
     uart_write_str(UART0, "4");
+    uart_write(UART0, decry_sig_len);
 
     int result = wc_RsaPSS_CheckPadding(hash, 32, *decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
     uart_write_str(UART0, "5");
@@ -420,7 +432,7 @@ uint8_t verify_signature(uint32_t * signature_idx, uint32_t * payload_idx, uint3
         return 0;
     }
     uart_write(UART0, result);
-    return 1;
+    return 0;
 }
 
 uint8_t aes_decrypt_move(uint32_t * payload_start, uint16_t length, uint32_t * destination_idx, byte * key, byte * iv) {
@@ -447,7 +459,32 @@ uint8_t aes_decrypt_move(uint32_t * payload_start, uint16_t length, uint32_t * d
     return 0; // success!
 }
 
-void move_firmware(uint32_t * origin_idx, uint32_t * destination_idx, uint16_t length) {
-    memcpy(destination_idx, origin_idx, length);
-    erase_partition(origin_idx, length / 1024);
-}
+// uint8_t move_firmware(uint32_t * origin_idx, uint32_t * destination_idx, uint16_t length) {
+//     // memcpy(destination_idx, origin_idx, length);
+
+//     // for (uint32_t offset = 0; offset < (length/1024); offset++) {
+
+//     //     uint32_t* erase_address = (destination_idx + (offset * 1024));
+//     //     if (FlashErase(*(erase_address)) == -1) {
+//     //         // failed
+//     //         return 0;
+//     //     }
+//     // }
+
+    
+//     for (uint32_t offset = 0; offset < (length/1024); offset++) {
+
+//         uint32_t* page_address = (destination_idx + (offset * 1024));
+//         if (program_flash((uint8_t *) page_address, origin_idx, 1024) == -1) {
+//             // failed
+//             return 1;
+//         }
+//     }
+
+
+
+//     // program_flash();s
+//     erase_partition(origin_idx, length / 1024);
+
+//     return 0;
+// }
