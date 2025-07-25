@@ -59,10 +59,10 @@ void move_firmware(uint32_t *, uint32_t *, uint16_t);
 // Firmware Constants
 #define METADATA_BASE 0xFC00     // base address of version and firmware size in Flash
 #define FW_BASE 0x10000          // base address of firmware in Flash
-#define FW_CHECK_BASE 0x20000    // base address of incoming firmware in Flash
-#define FW_INCOMING_BASE 0x30000 // base address of incoming firmware in Flash
+#define FW_CHECK_BASE 0x18000    // base address of incoming firmware in Flash
+#define FW_INCOMING_BASE 0x20000 // base address of incoming firmware in Flash
 
-#define FW_BASE_SIZE 0x10000 // size of FW BLOCK and FW CHECK //maybe off by one? double check
+#define FW_BASE_SIZE 0x8000 // size of FW BLOCK and FW CHECK //maybe off by one? double check
 
 // FLASH Constants
 #define FLASH_PAGESIZE 1024
@@ -80,6 +80,8 @@ unsigned char data[FLASH_PAGESIZE];
 
 RsaKey pub;
 int zero = 0;
+byte hash[32];
+byte * decry_sig_arr[256];
 
 int main(void) {
 
@@ -218,13 +220,19 @@ void load_firmware(void) {
     } // while(1)
 
     uint32_t sign_add = FW_INCOMING_BASE + 4 + 2 + size;
-    uint32_t payload_idx = FW_INCOMING_BASE + 4 + 2;
+    uint32_t payload_idx = FW_INCOMING_BASE;
+    uart_write_str(UART0, "hello");
 
-    if (verify_signature(&sign_add, &payload_idx, size)) {
-        erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
-    } else {
-        move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
+    if (check_firmware((uint32_t *)FW_INCOMING_BASE) == 0) {
+        uart_write_str(UART0, "nice");
     }
+    uart_write_str(UART0, "fail");
+
+    // if (verify_signature(&sign_add, &payload_idx, size + 6)) {
+    //     erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
+    // } else {
+    //     move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
+    // }
 }
 
 /*
@@ -274,6 +282,16 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 }
 
 void boot_firmware(void) {
+    uint32_t size = *(int *)FW_INCOMING_BASE;
+    uint32_t sign_add = FW_INCOMING_BASE + 4 + 2 + size;
+    uint32_t payload_idx = FW_INCOMING_BASE;
+    uart_write_str(UART0, "hello");
+
+    if (verify_signature(&sign_add, &payload_idx, size + 6)) {
+        erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
+    } else {
+        move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
+    }
     // Check if firmware loaded
     int fw_present = 0;
     for (uint8_t * i = (uint8_t *)FW_CHECK_BASE; i < (uint8_t *)FW_CHECK_BASE + 20; i++) {
@@ -299,7 +317,7 @@ void boot_firmware(void) {
     // verify firmware
     // bad -> stop clear
     // ok -> continue
-    if (check_firmware((uint32_t *) FW_CHECK_BASE) == 1) {
+    if (check_firmware((uint32_t *)FW_CHECK_BASE) == 1) {
         SysCtlReset();
     }
 
@@ -341,25 +359,25 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
 // erase from memory start index in length_in_kb nummber of 1kB chunks
 uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
     // erase flash memory starting from start and going length amount
-    for (uint32_t offset = 0; offset < length_in_kb; offset++) {
+    // for (uint32_t offset = 0; offset < length_in_kb; offset++) {
 
-        uint32_t* erase_address = (start_idx + (offset * 1024));
-        if (FlashErase(*(erase_address)) == -1) {
-            // failed
-            return 0;
-        }
-    }
-    // all erased successfully
-    return 1;
+    //     uint32_t* erase_address = (start_idx + (offset * 1024));
+    //     if (FlashErase(*(erase_address)) == -1) {
+    //         // failed
+    //         return 0;
+    //     }
+    // }
+    // // all erased successfully
+    // return 1;
 }
 
 // run on update after writing incoming FW to P3
 uint8_t check_firmware(uint32_t * start_idx) {
     // what do we need to do?
     //  run verify signature
-    uint32_t payload_length = *start_idx; // this is wrong maybe right????
+    uint32_t payload_length = *(int *)start_idx + 6; // this is wrong maybe right????
     uint32_t * sign_add = start_idx + 2 + payload_length;
-    uint32_t * payload_idx = start_idx + 6;
+    uint32_t * payload_idx = start_idx;
     if (verify_signature(sign_add, payload_idx, payload_length)) {
         return 1;
     }
@@ -383,18 +401,25 @@ uint8_t verify_signature(uint32_t * signature_idx, uint32_t * payload_idx, uint3
     // hash the encrypted payload with SHA256
     // decrypt the 256-byte long base with RSA pub key
     // then compare the two
+    uart_write_str(UART0, "hello1");
     wc_InitRsaKey(&pub, NULL);
     wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
+    uart_write_str(UART0, "2");
 
-    byte hash[256];
-    byte * decry_sig_arr[256];
-    wc_Sha256Hash((byte *)&payload_idx, 256, hash);
+    wc_Sha256Hash((byte *)&payload_idx, payload_length, hash);
 
-    int decry_sig_len = wc_RsaPSS_VerifyInline((byte *)&signature_idx, (word32)payload_length, decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
-    int result = wc_RsaPSS_CheckPadding(hash, 256, *decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
+    uart_write_str(UART0, "3");
+    int decry_sig_len = wc_RsaPSS_VerifyInline((byte *)&signature_idx, 256, decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+
+    uart_write_str(UART0, "4");
+
+    int result = wc_RsaPSS_CheckPadding(hash, 32, *decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
+    uart_write_str(UART0, "5");
     if (result == 0) {
+        uart_write_str(UART0, "good");
         return 0;
     }
+    uart_write(UART0, result);
     return 1;
 }
 

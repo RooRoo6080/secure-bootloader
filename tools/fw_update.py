@@ -104,7 +104,6 @@ def update(ser, infile, debug):
     if resp != RESP_OK:
         raise RuntimeError("ERROR: Bootloader responded to zero length frame with {}".format(repr(resp)))
     print(f"Wrote zero length frame (2 bytes)")
-
     return 
 
 

@@ -104,6 +104,7 @@ def protect_firmware(infile, outfile, version, message):
     
     signature = signer.sign(data_hash)
     print(f"signature: {signature.hex()}")
+    print(len(signature))
     
     final_blob = header + encrypted_payload + signature
 
