@@ -81,7 +81,7 @@ unsigned char data[FLASH_PAGESIZE];
 RsaKey pub;
 int zero = 0;
 byte hash[32];
-byte * decry_sig_arr[256];
+byte* decry_sig_arr;
 
 int main(void) {
 
@@ -283,18 +283,18 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 
 void boot_firmware(void) {
     uint32_t size = *(uint32_t *) FW_INCOMING_BASE;
-    uint32_t* sign_add = (uint32_t*)((uint8_t*) FW_INCOMING_BASE + 6 + size);
-    uint32_t* payload_idx = (uint32_t*)FW_INCOMING_BASE;
+    uint32_t sign_add = FW_INCOMING_BASE + 6 + size;
+    uint32_t payload_idx = FW_INCOMING_BASE;
     uart_write_str(UART0, "helloboot\n");
-    uart_write(UART0, size);
+    uart_write_hex(UART0, size);
     nl(UART0);
-    uart_write(UART0, *sign_add);
+    uart_write_hex(UART0, sign_add);
     nl(UART0);
-    uart_write(UART0, *payload_idx);
+    uart_write_hex(UART0, payload_idx);
     nl(UART0);
 
 
-    if (verify_signature(sign_add, payload_idx, size + 6) == 1) {
+    if (verify_signature(&sign_add, &payload_idx, size + 6) == 1) {
         uart_write_str(UART0, "fail");
         // erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
     } else {
@@ -411,28 +411,35 @@ uint8_t verify_signature(uint32_t *signature_idx, uint32_t * payload_idx, uint32
     // hash the encrypted payload with SHA256
     // decrypt the 256-byte long base with RSA pub key
     // then compare the two
-    uart_write_str(UART0, "hello1");
-    uart_write(UART0, payload_length);
+    nl(UART0);
+    uart_write_hex(UART0, payload_length);
     wc_InitRsaKey(&pub, NULL);
     wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
-    uart_write_str(UART0, "2");
 
-    wc_Sha256Hash((byte *)&payload_idx, payload_length, hash);
+    wc_Sha256Hash((byte *)payload_idx, payload_length, hash);
+    nl(UART0);
+    uart_write_str(UART0, hash);
+    nl(UART0);
+    uart_write_str(UART0, (char *) signature_idx);
+    nl(UART0);
 
-    uart_write_str(UART0, "3");
-    int decry_sig_len = wc_RsaPSS_VerifyInline((byte *)&signature_idx, 256, decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+    int decry_sig_len = wc_RsaPSS_VerifyInline((byte *)signature_idx, 256, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
+    if(decry_sig_len > 0){
+        uart_write_str(UART0, "successful verification");
+    }
+    else{
+        uart_write_str(UART0, "decry_sig_len < 0, failed verification");
+        return 1;
+    }
 
-    uart_write_str(UART0, "4");
-    uart_write(UART0, decry_sig_len);
 
-    int result = wc_RsaPSS_CheckPadding(hash, 32, *decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
-    uart_write_str(UART0, "5");
+    int result = wc_RsaPSS_CheckPadding(hash, 32, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
     if (result == 0) {
         uart_write_str(UART0, "good");
         return 0;
     }
     uart_write(UART0, result);
-    return 0;
+    return 1;
 }
 
 uint8_t aes_decrypt_move(uint32_t * payload_start, uint16_t length, uint32_t * destination_idx, byte * key, byte * iv) {
