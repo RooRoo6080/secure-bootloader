@@ -16,7 +16,7 @@ PAYLOAD (AES encrypted)
 SIGNATURE (SHA hashed and RSA signed)
  - signature of header + payload (256 bytes)
 -------------------------------------
- 
+
 Standards used:
  - AES-128; CBC mode
     * no need for anything more complicated (GCM) that includes authenticity
@@ -26,7 +26,6 @@ Standards used:
  - RSA 2048-bit encryption
 
 */
-
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -77,8 +76,10 @@ byte hash[32];
 byte * decry_sig_arr;
 byte signature_buffer[256];
 Sha256 sha256[1];
+byte aes_out[1024];
 
-int main(void) {
+    int
+    main(void) {
 
     initialize_uarts(UART0);
 
@@ -165,7 +166,7 @@ void load_firmware(void) {
     data[data_index] = '\0';
     data_index++;
 
-    if (program_flash((uint8_t *) METADATA_BASE, data, data_index)) {
+    if (program_flash((uint8_t *)METADATA_BASE, data, data_index)) {
         uart_write(UART0, ERROR);
         SysCtlReset();
         return;
@@ -237,10 +238,10 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 }
 
 void boot_firmware(void) {
-    uint16_t size = *(uint16_t *) METADATA_BASE;
+    uint16_t size = *(uint16_t *)METADATA_BASE;
     uint32_t sign_add = FW_INCOMING_BASE + size;
     uint32_t payload_idx = FW_INCOMING_BASE;
-    uint16_t message_length = *(uint16_t *) (METADATA_BASE + 4);
+    uint16_t message_length = *(uint16_t *)(METADATA_BASE + 4);
     uart_write_str(UART0, "helloboot\n");
     uart_write_hex(UART0, size);
     nl(UART0);
@@ -277,7 +278,7 @@ void boot_firmware(void) {
     }
 
     nl(UART0);
-    uart_write_str(UART0, (char *) (METADATA_BASE + 6));
+    uart_write_str(UART0, (char *)(METADATA_BASE + 6));
     nl(UART0);
 
     __asm("LDR R0,=0x10001\n\t"
@@ -320,7 +321,7 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
 
     wc_InitSha256(sha256);
-    wc_Sha256Update(sha256, (byte *) METADATA_BASE, message_length + 6);
+    wc_Sha256Update(sha256, (byte *)METADATA_BASE, message_length + 6);
     wc_Sha256Update(sha256, (byte *)payload_idx, payload_length);
     wc_Sha256Final(sha256, hash);
 
@@ -355,10 +356,18 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
 }
 
 uint8_t move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t length_in_kb) {
+    Aes aes;
+
+    int ret = wc_AesSetKey(&aes, aes_key, 16, aes_iv, AES_DECRYPTION);
+
     for (uint32_t offset = 0; offset < (length_in_kb); offset++) {
         uint32_t page_address = (destination_idx + (offset * 1024));
         uint32_t data_to_write = origin_idx + (offset * 1024);
-        if (program_flash((uint32_t *)page_address, (unsigned char *)data_to_write, 1024) == -1) {
+
+        ret = wc_AesCbcDecrypt(&aes, aes_out, (const byte *) data_to_write, (word32) 1024);
+        uart_write_hex(UART0, ret);
+
+        if (program_flash((uint32_t *)page_address, aes_out, 1024) == -1) {
             return 1;
         }
     }

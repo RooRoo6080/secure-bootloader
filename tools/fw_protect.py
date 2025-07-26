@@ -74,12 +74,13 @@ def protect_firmware(infile, outfile, version, message):
         
     rsa_private_key = RSA.import_key(keys['rsa_private_key_pem'])
     aes_key = bytes.fromhex(keys['aes_key_hex'])
+    iv = bytes.fromhex(keys['aes_iv'])
     
-    cipher = AES.new(aes_key, AES.MODE_CBC)
+    cipher = AES.new(aes_key, AES.MODE_CBC, iv)
     padded_payload = pad(payload, AES.block_size)
     encrypted_payload = cipher.encrypt(padded_payload)
     
-    encrypted_payload = payload
+    # encrypted_payload = payload
 
     print(f"blob size after encryption: {len(encrypted_payload)}")
     
