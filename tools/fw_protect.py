@@ -9,13 +9,12 @@ Firmware Bundle-and-Protect Tool
 Format of protected firmware output:
 -------------------------------------
 HEADER (unencrypted)
- - encrypted payload length (4 bytes)
+ - encrypted payload length (2 bytes)
  - firmware version (2 bytes)
-PAYLOAD (AES encrypted)
- - firmware binary length (4 bytes)
- - message length (4 bytes)
- - firmware binary
+ - message length (2 bytes)
  - message
+PAYLOAD (AES encrypted)
+ - firmware binary
  - padding required for AES
 SIGNATURE (SHA hashed and RSA signed)
  - signature of header + payload (256 bytes)
@@ -66,12 +65,7 @@ def protect_firmware(infile, outfile, version, message):
     print(f"firmware version: {version}")
 
     # creating payload with integrated lengths
-    payload = (
-        struct.pack('<L', len(firmware_binary)) +
-        struct.pack('<L', len(message_binary)) +
-        firmware_binary +
-        message_binary
-    )
+    payload = firmware_binary
     
     # AES encryption
     
@@ -89,9 +83,10 @@ def protect_firmware(infile, outfile, version, message):
 
     print(f"blob size after encryption: {len(encrypted_payload)}")
     
-    # header is just the length
-    header = struct.pack('<L', len(encrypted_payload))
+    header = struct.pack('<H', len(encrypted_payload))
     header += struct.pack('<H', version)
+    header += struct.pack('<H', len(message_binary))
+    header += message_binary
     
     to_sign = header + encrypted_payload
     

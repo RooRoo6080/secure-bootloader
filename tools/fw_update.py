@@ -35,10 +35,11 @@ FRAME_SIZE = 256
 
 
 # TODO: BYTE ORDER ISSUES WITH HEADER PAYULOAD LENGTH AND VERSION. MIGHT BE EASIER TO CHANGE IN PYTHON
-def send_metadata(ser, metadata, debug=False):
-    assert(len(metadata) == 6)
-    size, version = struct.unpack('<LH', metadata)
-    print(f"Version: {version}\nSize: {size} bytes\n")
+def send_metadata(ser, metadata, length, debug=False):
+    assert (len(metadata) == length)
+    size, version, message_length = struct.unpack('<HHH', metadata[:6])
+    print(
+        f"Version: {version}\nSize: {size} bytes\nMessage Length: {message_length}\n")
 
     # Handshake for update
     ser.write(b"U")
@@ -57,7 +58,8 @@ def send_metadata(ser, metadata, debug=False):
     # Wait for an OK from the bootloader.
     resp = ser.read(1)
     if resp != RESP_OK:
-        raise RuntimeError("ERROR: Bootloader responded with {}".format(repr(resp)))
+        raise RuntimeError(
+            "ERROR: Bootloader responded with {}".format(repr(resp)))
 
 
 def send_frame(ser, frame, debug=False):
@@ -71,7 +73,8 @@ def send_frame(ser, frame, debug=False):
     # time.sleep(0.1)
 
     if resp != RESP_OK:
-        raise RuntimeError("ERROR: Bootloader responded with {}".format(repr(resp)))
+        raise RuntimeError(
+            "ERROR: Bootloader responded with {}".format(repr(resp)))
 
     if debug:
         print("Resp: {}".format(ord(resp)))
@@ -81,14 +84,16 @@ def update(ser, infile, debug):
     # Open serial port. Set baudrate to 115200. Set timeout to 2 seconds.
     with open(infile, "rb") as fp:
         firmware_blob = fp.read()
+ 
+    message_length = struct.unpack('<H', firmware_blob[4:6])[0]
+    print(f"message length: {message_length}")
+    metadata = firmware_blob[:6 + message_length]
+    firmware = firmware_blob[6 + message_length:]
 
-    metadata = firmware_blob[:6]
-    firmware = firmware_blob[6:]
-
-    send_metadata(ser, metadata, debug=debug)
+    send_metadata(ser, metadata, 6 + message_length, debug=debug)
 
     for idx, frame_start in enumerate(range(0, len(firmware), FRAME_SIZE)):
-        data = firmware[frame_start : frame_start + FRAME_SIZE]
+        data = firmware[frame_start: frame_start + FRAME_SIZE]
 
         # Construct frame.
         frame = struct.pack('<H', len(data)) + data
@@ -102,17 +107,21 @@ def update(ser, infile, debug):
     ser.write(b'\x00\x00')
     resp = ser.read(1)  # Wait for an OK from the bootloader
     if resp != RESP_OK:
-        raise RuntimeError("ERROR: Bootloader responded to zero length frame with {}".format(repr(resp)))
+        raise RuntimeError(
+            "ERROR: Bootloader responded to zero length frame with {}".format(repr(resp)))
     print(f"Wrote zero length frame (2 bytes)")
-    return 
+    return
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Firmware Update Tool")
 
-    parser.add_argument("--port", help="Provide a path to the Tiva device (default=/dev/ttyACM0)", default='/dev/ttyACM0', required=False)
-    parser.add_argument("--firmware", help="Path to firmware image to load.", required=False)
-    parser.add_argument("--debug", help="Enable debugging messages.", action="store_true")
+    parser.add_argument("--port", help="Provide a path to the Tiva device (default=/dev/ttyACM0)",
+                        default='/dev/ttyACM0', required=False)
+    parser.add_argument(
+        "--firmware", help="Path to firmware image to load.", required=False)
+    parser.add_argument(
+        "--debug", help="Enable debugging messages.", action="store_true")
     args = parser.parse_args()
 
     ser = serial.Serial(args.port, 115200)

@@ -45,7 +45,7 @@ MEMORY
 
 SECTIONS
 {
-    .text 0x1000E :
+    .text 0x10000 :
     {
         _text = .;
         KEEP(*(.isr_vector))

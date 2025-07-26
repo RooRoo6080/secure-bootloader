@@ -8,7 +8,7 @@ python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_p
 python3 fw_update.py --firmware ./firmware_protected.bin --port /dev/tty.usbmodem0E23BCDF1 --debug
 python3 -m serial.tools.miniterm /dev/tty.usbmodem0E23BCDF1 115200
 
-python bl_build.py && lm4flash ../bootloader/bin/bootloader.bin && python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2" && python3 fw_update.py --firmware ./firmware_protected.bin --port /dev/tty.usbmodem0E23BCDF1 --debug
+python bl_build.py && lm4flash ../bootloader/bin/bootloader.bin && python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2" && python3 fw_update.py --firmware ./firmware_protected.bin --port /dev/tty.usbmodem0E23BCDF1 --debug && python3 -m serial.tools.miniterm /dev/tty.usbmodem0E23BCDF1 115200
 ```
 
 Installation and development guide for the most secure (TM) automotive bootloader on the planet! We guarentee that cars running our software will be unhackable (provided hacking is not attempted). Of all the automotive bootloaders, this is certainly one of them. Read on and tremble at our embedded security skillz.
