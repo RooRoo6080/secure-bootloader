@@ -66,8 +66,6 @@ def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
             f"0x{b:02x}" for b in rsa_public_key_der) + "};\n")
         f.write("const byte aes_key[16] = {" + ", ".join(
             f"0x{b:02x}" for b in bytes.fromhex(aes_key_hex.hex())) + "};\n")
-        f.write(
-            f"const uint32_t public_key_der_len = {len(rsa_public_key_der)};\n")
         f.write("const byte aes_iv[] = {" + ", ".join(
             f"0x{b:02x}" for b in iv) + "};\n")
 
