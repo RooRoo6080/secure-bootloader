@@ -86,7 +86,6 @@ def update(ser, infile, debug):
         firmware_blob = fp.read()
  
     message_length = struct.unpack('<H', firmware_blob[4:6])[0]
-    print(f"message length: {message_length}")
     metadata = firmware_blob[:6 + message_length]
     firmware = firmware_blob[6 + message_length:]
 

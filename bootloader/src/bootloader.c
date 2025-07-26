@@ -60,7 +60,7 @@ void boot_firmware(void);
 void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
 uint8_t erase_partition(uint32_t *, uint8_t);
 // uint8_t check_firmware(uint32_t *);
-uint8_t verify_signature(uint16_t, uint32_t, uint32_t, uint16_t);
+uint8_t verify_signature(uint32_t, uint32_t, uint32_t, uint16_t);
 // uint8_t aes_decrypt_move(uint32_t *, uint16_t, uint32_t *, byte *, byte *);
 uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 
@@ -319,11 +319,13 @@ void boot_firmware(void) {
     nl(UART0);
     uart_write_hex(UART0, payload_idx);
     nl(UART0);
+    uart_write_hex(UART0, message_length);
+    nl(UART0);
 
     if (verify_signature(sign_add, payload_idx, size, message_length) == 1) {
         uart_write_str(UART0, "fail");
         // erase_partition((uint32_t *)FW_INCOMING_BASE, (uint8_t)64);
-        // return;
+        return;
     } else {
         uart_write_str(UART0, "success");
         // move_firmware((uint32_t *)FW_INCOMING_BASE, (uint32_t *)FW_CHECK_BASE, (uint16_t)FW_BASE_SIZE);
@@ -447,7 +449,7 @@ uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
 // }
 
 // return 0 on success, 1 on fail and error
-uint8_t verify_signature(uint16_t signature_idx, uint32_t payload_idx, uint32_t payload_length, uint16_t message_length) {
+uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length, uint16_t message_length) {
     // hash the encrypted payload with SHA256
     // decrypt the 256-byte long base with RSA pub key
     // then compare the two
