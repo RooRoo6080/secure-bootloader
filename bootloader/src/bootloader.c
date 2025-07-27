@@ -64,8 +64,10 @@ uint8_t move_and_decrypt(uint32_t, uint32_t, uint16_t);
 uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 
 #define METADATA_BASE 0xFC00
-#define METADATA_INCOMING_BASE 0x28000
+#define METADATA_CHECK_BASE 0x28000
+#define METADATA_INCOMING_BASE 0x30000
 #define FW_BASE 0x10000
+#define FW_CHECK_BASE 0x18000
 #define FW_INCOMING_BASE 0x20000
 
 #define FLASH_PAGESIZE 1024
@@ -186,7 +188,7 @@ void load_firmware(void) {
     }
 
     if (version != 0 && version < old_version) {
-        uart_write_str(UART0, "Old firmware version");
+        uart_write_str(UART0, "Error: Old firmware version");
         uart_write(UART0, ERROR);
         SysCtlReset();
         return;
@@ -269,44 +271,68 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 }
 
 void boot_firmware(void) {
-    uint16_t size = *(uint32_t *)METADATA_INCOMING_BASE;
-    uint32_t sign_add = FW_INCOMING_BASE + size;
-    uint32_t payload_idx = FW_INCOMING_BASE;
-    uint16_t message_length = *(uint32_t *)(METADATA_INCOMING_BASE + 4);
-
-    if (verify_signature(sign_add, payload_idx, size, message_length, METADATA_INCOMING_BASE) == 1) {
-        uart_write_str(UART0, "Signature verification failed. Booting old firmware\n");
-    } else {
-        erase_partition(METADATA_BASE, 2);
-        erase_partition(FW_BASE, 31);
-        if (move_firmware(METADATA_INCOMING_BASE, METADATA_BASE, 2)) {
-            uart_write_str(UART0, "failed moving + decrypting fw\n");
-            SysCtlReset();
-        }
-        if (move_and_decrypt(FW_INCOMING_BASE, FW_BASE, 31)) {
-            uart_write_str(UART0, "failed moving + decrypting fw\n");
-            SysCtlReset();
-        }
+    int incoming_fw_present = 0;
+    if (*(uint32_t *)METADATA_INCOMING_BASE != 0xFFFFFFFF) {
+        incoming_fw_present = 1;
     }
 
-    int fw_present = 0;
-    for (uint8_t * i = (uint8_t *)FW_BASE; i < (uint8_t *)FW_BASE + 20; i++) {
-        if (*i != 0xFF) {
-            fw_present = 1;
+    if (incoming_fw_present) {
+        uint16_t size = *(uint16_t *)METADATA_INCOMING_BASE;
+        uint16_t message_length = *(uint16_t *)(METADATA_INCOMING_BASE + 4);
+        uint32_t sign_add = FW_INCOMING_BASE + size;
+
+        if (verify_signature(sign_add, FW_INCOMING_BASE, size, message_length, METADATA_INCOMING_BASE) == 0) {
+
+            erase_partition(METADATA_CHECK_BASE, 2);
+            erase_partition(FW_CHECK_BASE, 31);
+
+            if (move_firmware(METADATA_INCOMING_BASE, METADATA_CHECK_BASE, 2) || move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, 31)) {
+                uart_write_str(UART0, "Failed to move firmware to check partition\n");
+                SysCtlReset();
+            }
+        } else {
+            uart_write_str(UART0, "Incoming signature verification failed. Booting previous firmware\n");
         }
+        erase_partition(METADATA_INCOMING_BASE, 2);
+        erase_partition(FW_INCOMING_BASE, 31);
     }
 
-    if (!fw_present) {
-        uart_write_str(UART0, "No firmware loaded. Resetting.\n");
+    if (*(uint32_t *)METADATA_CHECK_BASE == 0xFFFFFFFF) {
+        uart_write_str(UART0, "No firmware found in check partition\n");
         SysCtlReset();
     }
 
-    nl(UART0);
-    uart_write_str(UART0, (char *)(METADATA_BASE + 6));
-    nl(UART0);
+    uint16_t size_check = *(uint16_t *)METADATA_CHECK_BASE;
+    uint16_t message_length_check = *(uint16_t *)(METADATA_CHECK_BASE + 4);
+    uint32_t sign_add_check = FW_CHECK_BASE + size_check;
 
-    __asm("LDR R0,=0x10001\n\t"
-          "BX R0\n\t");
+    if (verify_signature(sign_add_check, FW_CHECK_BASE, size_check, message_length_check, METADATA_CHECK_BASE) == 0) {
+        erase_partition(METADATA_BASE, 2);
+        erase_partition(FW_BASE, 31);
+
+        if (move_firmware(METADATA_CHECK_BASE, METADATA_BASE, 2)) {
+            uart_write_str(UART0, "Failed moving metadata to base\n");
+            SysCtlReset();
+        }
+
+        if (move_and_decrypt(FW_CHECK_BASE, FW_BASE, 31)) {
+            uart_write_str(UART0, "Failed moving and decrypting firmware to base\n");
+            SysCtlReset();
+        }
+
+        uart_write_str(UART0, "Booting firmware...\n");
+        nl(UART0);
+
+        uart_write_str(UART0, (char *)(METADATA_BASE + 6));
+        nl(UART0);
+
+        __asm("LDR R0,=0x10001\n\t"
+              "BX R0\n\t");
+
+    } else {
+        uart_write_str(UART0, "Firmware in check partition failed signature verification\n");
+        SysCtlReset();
+    }
 }
 
 void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
@@ -343,6 +369,9 @@ void erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
 
 uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length, uint16_t message_length, uint32_t metadata) {
     nl(UART0);
+
+    inOut = 0;
+
     wc_InitRsaKey(&pub, NULL);
 
     EEPROMRead(rsa_pub_eeprom, 0x400, sizeof(rsa_pub_eeprom));
@@ -352,7 +381,7 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     }
 
     wc_InitSha256(sha256);
-    wc_Sha256Update(sha256, (byte *)METADATA_INCOMING_BASE, message_length + 6);
+    wc_Sha256Update(sha256, (byte *)metadata, message_length + 6);
     wc_Sha256Update(sha256, (byte *)payload_idx, payload_length);
     wc_Sha256Final(sha256, hash);
 
@@ -362,11 +391,15 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     if (decry_sig_len > 0) {
     } else {
         uart_write_str(UART0, "decry_sig_len < 0, failed verification\n");
+        wc_FreeRsaKey(&pub);
+        wc_Sha256Free(sha256);
         return 1;
     }
 
     int result = wc_RsaPSS_CheckPadding(hash, 32, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
     if (result == 0) {
+        wc_FreeRsaKey(&pub);
+        wc_Sha256Free(sha256);
         return 0;
     }
     wc_FreeRsaKey(&pub);
