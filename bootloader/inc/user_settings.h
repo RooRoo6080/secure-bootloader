@@ -24,6 +24,11 @@
 #ifndef WOLFSSL_USER_SETTINGS_H
 #define WOLFSSL_USER_SETTINGS_H
 
+#define WOLFSSL_CIPHER_TEXT_CHECK
+#define WC_RSA_BLINDING
+#define TFM_TIMING_RESISTANT
+#define ECC_TIMING_RESISTANT
+
 #ifdef __cplusplus
 extern "C" {
 #endif

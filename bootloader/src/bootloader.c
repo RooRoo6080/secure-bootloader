@@ -21,8 +21,7 @@ Standards used:
  - AES-128; CBC mode
     * no need for anything more complicated (GCM) that includes authenticity
     * speed benefits of CTR would go unused
- - SHA256 hashing; PKCS #1 v1.5
-    * could also use more secure PSS, though harder on microcontroller end
+ - SHA256 hashing; PSS
  - RSA 2048-bit encryption
 
 */
@@ -72,7 +71,7 @@ uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 #define FLASH_PAGESIZE 1024
 #define FLASH_WRITESIZE 4
 
-unsigned char data[FLASH_PAGESIZE];
+unsigned char data[FLASH_PAGESIZE + 6];
 
 RsaKey pub;
 int inOut = 0;
@@ -99,9 +98,6 @@ int main(void) {
     EEPROMInit();
     EEPROMProgram((uint32_t *)aes_key, 0x200, sizeof(aes_key));
     EEPROMProgram((uint32_t *)rsa_pub_key, 0x400, sizeof(rsa_pub_eeprom));
-
-    erase_partition(METADATA_BASE, 2);
-    erase_partition(FW_BASE, 31);
 
     for (int i = 0; i < 16; i++) {
         aes_key[i] = '\0';
@@ -173,6 +169,11 @@ void load_firmware(void) {
     data_index++;
     message_length |= (uint32_t)rcv << 8;
 
+    if (message_length > 1024) {
+        uart_write_str(UART0, "Message length over 1kb\n");
+        uart_write(UART0, ERROR);
+        SysCtlReset();
+    }
     for (int i = 0; i < message_length; i++) {
         rcv = uart_read(UART0, BLOCKING, &read);
         data[data_index] = rcv;
@@ -268,24 +269,22 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 }
 
 void boot_firmware(void) {
-    erase_partition(METADATA_BASE, 2);
-    erase_partition(FW_BASE, 31);
-
     uint16_t size = *(uint32_t *)METADATA_INCOMING_BASE;
     uint32_t sign_add = FW_INCOMING_BASE + size;
     uint32_t payload_idx = FW_INCOMING_BASE;
     uint16_t message_length = *(uint32_t *)(METADATA_INCOMING_BASE + 4);
 
     if (verify_signature(sign_add, payload_idx, size, message_length, METADATA_INCOMING_BASE) == 1) {
-        uart_write_str(UART0, "Signature verification failed");
-        SysCtlReset();
+        uart_write_str(UART0, "Signature verification failed. Booting old firmware\n");
     } else {
+        erase_partition(METADATA_BASE, 2);
+        erase_partition(FW_BASE, 31);
         if (move_firmware(METADATA_INCOMING_BASE, METADATA_BASE, 2)) {
-            uart_write_str(UART0, "failed moving + decrypting fw");
+            uart_write_str(UART0, "failed moving + decrypting fw\n");
             SysCtlReset();
         }
         if (move_and_decrypt(FW_INCOMING_BASE, FW_BASE, 31)) {
-            uart_write_str(UART0, "failed moving + decrypting fw");
+            uart_write_str(UART0, "failed moving + decrypting fw\n");
             SysCtlReset();
         }
     }
@@ -362,8 +361,7 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     int decry_sig_len = wc_RsaPSS_VerifyInline(signature_buffer, 256, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
     if (decry_sig_len > 0) {
     } else {
-        uart_write_str(UART0, "decry_sig_len < 0, failed verification");
-        uart_write_hex(UART0, decry_sig_len);
+        uart_write_str(UART0, "decry_sig_len < 0, failed verification\n");
         return 1;
     }
 
@@ -371,7 +369,8 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     if (result == 0) {
         return 0;
     }
-    uart_write(UART0, result);
+    wc_FreeRsaKey(&pub);
+    wc_Sha256Free(sha256);
     return 1;
 }
 
@@ -395,7 +394,7 @@ uint8_t move_and_decrypt(uint32_t origin_idx, uint32_t destination_idx, uint16_t
             return 1;
         }
     }
-
+    wc_AesFree(&aes);
     return 0;
 }
 
