@@ -41,6 +41,7 @@ Standards used:
 
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
+#include "inc/hw_flash.h"
 #include "inc/tm4c123gh6pm.h"
 
 #include "driverlib/adc.h"
@@ -53,7 +54,7 @@ Standards used:
 #include "driverlib/gpio.h"
 #include "uart/uart.h"
 
-#include "public_key.h"
+#include "keys.h"
 
 void load_firmware(void);
 void boot_firmware(void);
@@ -84,6 +85,13 @@ uint32_t aes_key_eeprom[16];
 uint32_t rsa_pub_eeprom[294];
 
 int main(void) {
+
+    // THIS MAY BRICK THE TIVA
+    // DO NOT RUN UNCOMMENTED UNLESS YOU HAVE A WAY TO UNBRICK IT
+
+    // HWREG(FLASH_FMA) = 0x75100000;
+    // HWREG(FLASH_FMD) = HWREG(FLASH_BOOTCFG) & 0x7FFFFFFC;
+    // HWREG(FLASH_FMC) = FLASH_FMC_WRKEY | FLASH_FMC_COMT;
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
     while (!SysCtlPeripheralReady(SYSCTL_PERIPH_EEPROM0)) {

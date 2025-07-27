@@ -20,7 +20,7 @@ from Crypto.Random import get_random_bytes
 REPO_ROOT = pathlib.Path(__file__).parent.parent.absolute()
 BOOTLOADER_DIR = os.path.join(REPO_ROOT, "bootloader")
 SECRET_BUILD_OUTPUT_PATH = "secret_build_output.txt"
-PUBLIC_KEY_C_FILE_PATH = os.path.join(BOOTLOADER_DIR, "inc", "public_key.h")
+PUBLIC_KEY_C_FILE_PATH = os.path.join(BOOTLOADER_DIR, "inc", "keys.h")
 
 
 def make_bootloader() -> bool:

@@ -87,7 +87,7 @@ LDFLAGS=--gc-sections \
 
 # Debug settings
 # REMOVE THIS B4 PUBLISHING TO DISABLE 
-CFLAGS+=-ggdb -D DEBUG -O0
+# CFLAGS+=-ggdb -D DEBUG -O0
 
 CFLAGS+=-Os
 
