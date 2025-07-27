@@ -85,7 +85,18 @@ byte aes_out[1024];
 uint32_t aes_key_eeprom[16];
 uint32_t rsa_pub_eeprom[294];
 
+const uint32_t canary_global = 0xDEADBEEF;
+
+void check_canary(uint32_t canary) {
+    if (canary != canary_global) {
+        uart_write_str(UART0, "Pls no stack buffer overflow attacks ty fam\n");
+        SysCtlReset();
+    }
+}
+
 int main(void) {
+
+    volatile uint32_t canary = canary_global;
 
     // THIS MAY BRICK THE TIVA
     // DO NOT RUN UNCOMMENTED UNLESS YOU HAVE A WAY TO UNBRICK IT
@@ -127,10 +138,13 @@ int main(void) {
             uart_write_str(UART0, "Booting firmware...\n");
             boot_firmware();
         }
+        check_canary(canary);
     }
 }
 
 void load_firmware(void) {
+    volatile uint32_t canary = canary_global;
+
     int frame_length = 0;
     int read = 0;
     uint32_t rcv = 0;
@@ -204,6 +218,7 @@ void load_firmware(void) {
         SysCtlReset();
         return;
     }
+    check_canary(canary);
 
     data_index = 0;
 
@@ -237,6 +252,7 @@ void load_firmware(void) {
             }
         }
 
+        check_canary(canary);
         uart_write(UART0, OK);
     }
 }
@@ -271,6 +287,8 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 }
 
 void boot_firmware(void) {
+    volatile uint32_t canary = canary_global;
+
     int incoming_fw_present = 0;
     if (*(uint32_t *)METADATA_INCOMING_BASE != 0xFFFFFFFF) {
         incoming_fw_present = 1;
@@ -326,6 +344,8 @@ void boot_firmware(void) {
         uart_write_str(UART0, (char *)(METADATA_BASE + 6));
         nl(UART0);
 
+        check_canary(canary);
+
         __asm("LDR R0,=0x10001\n\t"
               "BX R0\n\t");
 
@@ -370,6 +390,7 @@ void erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
 uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length, uint16_t message_length, uint32_t metadata) {
     nl(UART0);
 
+    volatile uint32_t canary = canary_global;
     inOut = 0;
 
     wc_InitRsaKey(&pub, NULL);
@@ -400,6 +421,7 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     if (result == 0) {
         wc_FreeRsaKey(&pub);
         wc_Sha256Free(sha256);
+        check_canary(canary);
         return 0;
     }
     wc_FreeRsaKey(&pub);
@@ -409,6 +431,7 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
 
 uint8_t move_and_decrypt(uint32_t origin_idx, uint32_t destination_idx, uint16_t length_in_kb) {
     Aes aes;
+    volatile uint32_t canary = canary_global;
 
     EEPROMRead(aes_key_eeprom, 0x200, sizeof(aes_key_eeprom));
 
@@ -428,10 +451,13 @@ uint8_t move_and_decrypt(uint32_t origin_idx, uint32_t destination_idx, uint16_t
         }
     }
     wc_AesFree(&aes);
+    check_canary(canary);
     return 0;
 }
 
 uint8_t move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t length_in_kb) {
+    volatile uint32_t canary = canary_global;
+
     for (uint32_t offset = 0; offset < (length_in_kb); offset++) {
         uint32_t page_address = (destination_idx + (offset * 1024));
         uint32_t data_to_write = origin_idx + (offset * 1024);
@@ -439,5 +465,6 @@ uint8_t move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t le
             return 1;
         }
     }
+    check_canary(canary);
     return 0;
 }
