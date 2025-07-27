@@ -62,9 +62,9 @@ def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
     with open(public_key_c_path, "w") as f:
         f.write("#define PUBLIC_KEY_H\n")
         f.write("#include <stdint.h>\n\n")
-        f.write("const uint8_t public_key_der[] = {" + ", ".join(
+        f.write("uint8_t rsa_pub_key[] = {" + ", ".join(
             f"0x{b:02x}" for b in rsa_public_key_der) + "};\n")
-        f.write("const byte aes_key[16] = {" + ", ".join(
+        f.write("byte aes_key[16] = {" + ", ".join(
             f"0x{b:02x}" for b in bytes.fromhex(aes_key_hex.hex())) + "};\n")
         f.write("const byte aes_iv[] = {" + ", ".join(
             f"0x{b:02x}" for b in iv) + "};\n")

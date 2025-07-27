@@ -74,21 +74,30 @@ uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 unsigned char data[FLASH_PAGESIZE];
 
 RsaKey pub;
-int zero = 0;
+int inOut = 0;
 byte hash[32];
 byte * decry_sig_arr;
 byte signature_buffer[256];
 Sha256 sha256[1];
 byte aes_out[1024];
 uint32_t aes_key_eeprom[16];
+uint32_t rsa_pub_eeprom[294];
 
 int main(void) {
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
     while (!SysCtlPeripheralReady(SYSCTL_PERIPH_EEPROM0)) {
     }
-    // EEPROMInit();
-    // EEPROMProgram(aes_key, 0x400, sizeof(aes_key));
+    EEPROMInit();
+    EEPROMProgram((uint32_t *)aes_key, 0x200, sizeof(aes_key));
+    EEPROMProgram((uint32_t *)rsa_pub_key, 0x400, sizeof(rsa_pub_eeprom));
+
+    for (int i = 0; i < 16; i++) {
+        aes_key[i] = '\0';
+    }
+    for (int i = 0; i < 294; i++) {
+        rsa_pub_key[i] = '\0';
+    }
 
     initialize_uarts(UART0);
 
@@ -252,20 +261,10 @@ void boot_firmware(void) {
     uint32_t sign_add = FW_INCOMING_BASE + size;
     uint32_t payload_idx = FW_INCOMING_BASE;
     uint16_t message_length = *(uint32_t *)(METADATA_INCOMING_BASE + 4);
-    uart_write_str(UART0, "helloboot\n");
-    uart_write_hex(UART0, size);
-    nl(UART0);
-    uart_write_hex(UART0, sign_add);
-    nl(UART0);
-    uart_write_hex(UART0, payload_idx);
-    nl(UART0);
-    uart_write_hex(UART0, message_length);
-    nl(UART0);
 
     if (verify_signature(sign_add, payload_idx, size, message_length, METADATA_INCOMING_BASE) == 1) {
-        uart_write_str(UART0, "fail");
+        uart_write_str(UART0, "Signature verification failed");
     } else {
-        uart_write_str(UART0, "success");
         if (move_firmware(METADATA_INCOMING_BASE, METADATA_BASE, 2)) {
             uart_write_str(UART0, "failed moving + decrypting fw");
         }
@@ -327,30 +326,23 @@ uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
 
 uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length, uint16_t message_length, uint32_t metadata) {
     nl(UART0);
-    uart_write_hex(UART0, payload_length);
     wc_InitRsaKey(&pub, NULL);
-    wc_RsaPublicKeyDecode(public_key_der, &zero, &pub, sizeof(public_key_der));
+
+    EEPROMRead(rsa_pub_eeprom, 0x400, sizeof(rsa_pub_eeprom));
+    wc_RsaPublicKeyDecode((byte *)rsa_pub_eeprom, &inOut, &pub, 294);
+    for (int i = 0; i < 294; i++) {
+        rsa_pub_eeprom[i] = '\0';
+    }
 
     wc_InitSha256(sha256);
     wc_Sha256Update(sha256, (byte *)METADATA_INCOMING_BASE, message_length + 6);
     wc_Sha256Update(sha256, (byte *)payload_idx, payload_length);
     wc_Sha256Final(sha256, hash);
 
-    nl(UART0);
-    uart_write_str(UART0, hash);
-    nl(UART0);
-    uart_write_hex(UART0, signature_idx);
-    nl(UART0);
-    uart_write_hex(UART0, payload_idx);
-    nl(UART0);
-
     memcpy(signature_buffer, (byte *)signature_idx, 256);
-    uart_write_hex_bytes(UART0, signature_buffer, 256);
-    nl(UART0);
 
     int decry_sig_len = wc_RsaPSS_VerifyInline(signature_buffer, 256, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
     if (decry_sig_len > 0) {
-        uart_write_str(UART0, "successful verification");
     } else {
         uart_write_str(UART0, "decry_sig_len < 0, failed verification");
         uart_write_hex(UART0, decry_sig_len);
@@ -359,7 +351,6 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
 
     int result = wc_RsaPSS_CheckPadding(hash, 32, decry_sig_arr, (word32)decry_sig_len, WC_HASH_TYPE_SHA256);
     if (result == 0) {
-        uart_write_str(UART0, "good");
         return 0;
     }
     uart_write(UART0, result);
@@ -369,21 +360,24 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
 uint8_t move_and_decrypt(uint32_t origin_idx, uint32_t destination_idx, uint16_t length_in_kb) {
     Aes aes;
 
-    // EEPROMRead(aes_key_eeprom, 0x400, sizeof(aes_key_eeprom));
+    EEPROMRead(aes_key_eeprom, 0x200, sizeof(aes_key_eeprom));
 
-    int ret = wc_AesSetKey(&aes, aes_key, 16, aes_iv, AES_DECRYPTION);
+    wc_AesSetKey(&aes, (byte *)aes_key_eeprom, 16, aes_iv, AES_DECRYPTION);
+    for (int i = 0; i < 16; i++) {
+        aes_key_eeprom[i] = '\0';
+    }
 
     for (uint32_t offset = 0; offset < (length_in_kb); offset++) {
         uint32_t page_address = (destination_idx + (offset * 1024));
         uint32_t data_to_write = origin_idx + (offset * 1024);
 
-        ret = wc_AesCbcDecrypt(&aes, aes_out, (const byte *)data_to_write, (word32)1024);
-        uart_write_hex(UART0, ret);
+        wc_AesCbcDecrypt(&aes, aes_out, (const byte *)data_to_write, (word32)1024);
 
         if (program_flash((uint32_t *)page_address, aes_out, 1024) == -1) {
             return 1;
         }
     }
+
     return 0;
 }
 
@@ -391,7 +385,7 @@ uint8_t move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t le
     for (uint32_t offset = 0; offset < (length_in_kb); offset++) {
         uint32_t page_address = (destination_idx + (offset * 1024));
         uint32_t data_to_write = origin_idx + (offset * 1024);
-        if (program_flash((uint32_t *)page_address, (const byte *)data_to_write, 1024) == -1) {
+        if (program_flash((uint32_t *)page_address, (byte *)data_to_write, 1024) == -1) {
             return 1;
         }
     }
