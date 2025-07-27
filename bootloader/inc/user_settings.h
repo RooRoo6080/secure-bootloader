@@ -271,10 +271,10 @@ extern "C" {
     #define GCM_SMALL
 
     #undef  WOLFSSL_AES_DIRECT
-    //#define WOLFSSL_AES_DIRECT
+    #define WOLFSSL_AES_DIRECT
 
     #undef  HAVE_AES_ECB
-    //#define HAVE_AES_ECB
+    #define HAVE_AES_ECB
 
     #undef  WOLFSSL_AES_COUNTER
     //#define WOLFSSL_AES_COUNTER

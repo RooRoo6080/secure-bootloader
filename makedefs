@@ -86,7 +86,8 @@ LDFLAGS=--gc-sections \
         -Map=output.map
 
 # Debug settings
-CFLAGS+=-ggdb -D DEBUG -O0
+# REMOVE THIS B4 PUBLISHING TO DISABLE 
+# CFLAGS+=-ggdb -D DEBUG -O0
 
 CFLAGS+=-Os
 

@@ -9,16 +9,15 @@ Firmware Bundle-and-Protect Tool
 Format of protected firmware output:
 -------------------------------------
 HEADER (unencrypted)
- - encrypted payload length (4 bytes)
-PAYLOAD (AES encrypted)
- - firmware binary length (4 bytes)
- - message length (4 bytes)
+ - encrypted payload length (2 bytes)
  - firmware version (2 bytes)
- - firmware binary
+ - message length (2 bytes)
  - message
+PAYLOAD (AES encrypted)
+ - firmware binary
  - padding required for AES
 SIGNATURE (SHA hashed and RSA signed)
- - signature (256 bytes)
+ - signature of header + payload (256 bytes)
 -------------------------------------
  
 Standards used:
@@ -37,6 +36,7 @@ import hashlib
 import json
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
+from Crypto.Signature import pss
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -65,13 +65,7 @@ def protect_firmware(infile, outfile, version, message):
     print(f"firmware version: {version}")
 
     # creating payload with integrated lengths
-    payload = (
-        struct.pack('<L', len(firmware_binary)) +
-        struct.pack('<L', len(message_binary)) +
-        struct.pack('<H', version) +
-        firmware_binary +
-        message_binary
-    )
+    payload = firmware_binary
     
     # AES encryption
     
@@ -80,15 +74,20 @@ def protect_firmware(infile, outfile, version, message):
         
     rsa_private_key = RSA.import_key(keys['rsa_private_key_pem'])
     aes_key = bytes.fromhex(keys['aes_key_hex'])
+    iv = bytes.fromhex(keys['aes_iv'])
     
-    cipher = AES.new(aes_key, AES.MODE_CBC)
+    cipher = AES.new(aes_key, AES.MODE_CBC, iv)
     padded_payload = pad(payload, AES.block_size)
     encrypted_payload = cipher.encrypt(padded_payload)
+    
+    # encrypted_payload = payload
 
     print(f"blob size after encryption: {len(encrypted_payload)}")
     
-    # header is just the length
-    header = struct.pack('<L', len(encrypted_payload))
+    header = struct.pack('<H', len(encrypted_payload))
+    header += struct.pack('<H', version)
+    header += struct.pack('<H', len(message_binary))
+    header += message_binary
     
     to_sign = header + encrypted_payload
     
@@ -98,11 +97,12 @@ def protect_firmware(infile, outfile, version, message):
     
     # PKCS #1 v1.5 is simple and deterministic
     # can also use more complex, salted PSS for non-deterministic hashes
-    signer = pkcs1_15.new(rsa_private_key)
-    # signer = pss.new(private_key)
+    # signer = pkcs1_15.new(rsa_private_key)
+    signer = pss.new(rsa_private_key)
     
     signature = signer.sign(data_hash)
     print(f"signature: {signature.hex()}")
+    print(len(signature))
     
     final_blob = header + encrypted_payload + signature
 
