@@ -39,9 +39,9 @@ Standards used:
 #include "wolfssl/wolfcrypt/settings.h"
 #include "wolfssl/wolfcrypt/sha.h"
 
+#include "inc/hw_flash.h"
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
-#include "inc/hw_flash.h"
 #include "inc/tm4c123gh6pm.h"
 
 #include "driverlib/adc.h"
@@ -59,7 +59,7 @@ Standards used:
 void load_firmware(void);
 void boot_firmware(void);
 void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
-uint8_t erase_partition(uint32_t *, uint8_t);
+void erase_partition(uint32_t, uint8_t);
 uint8_t verify_signature(uint32_t, uint32_t, uint32_t, uint16_t, uint32_t);
 uint8_t move_and_decrypt(uint32_t, uint32_t, uint16_t);
 uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
@@ -99,6 +99,9 @@ int main(void) {
     EEPROMInit();
     EEPROMProgram((uint32_t *)aes_key, 0x200, sizeof(aes_key));
     EEPROMProgram((uint32_t *)rsa_pub_key, 0x400, sizeof(rsa_pub_eeprom));
+
+    erase_partition(METADATA_BASE, 2);
+    erase_partition(FW_BASE, 31);
 
     for (int i = 0; i < 16; i++) {
         aes_key[i] = '\0';
@@ -265,6 +268,9 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
 }
 
 void boot_firmware(void) {
+    erase_partition(METADATA_BASE, 2);
+    erase_partition(FW_BASE, 31);
+
     uint16_t size = *(uint32_t *)METADATA_INCOMING_BASE;
     uint32_t sign_add = FW_INCOMING_BASE + size;
     uint32_t payload_idx = FW_INCOMING_BASE;
@@ -272,12 +278,15 @@ void boot_firmware(void) {
 
     if (verify_signature(sign_add, payload_idx, size, message_length, METADATA_INCOMING_BASE) == 1) {
         uart_write_str(UART0, "Signature verification failed");
+        SysCtlReset();
     } else {
         if (move_firmware(METADATA_INCOMING_BASE, METADATA_BASE, 2)) {
             uart_write_str(UART0, "failed moving + decrypting fw");
+            SysCtlReset();
         }
         if (move_and_decrypt(FW_INCOMING_BASE, FW_BASE, 31)) {
             uart_write_str(UART0, "failed moving + decrypting fw");
+            SysCtlReset();
         }
     }
 
@@ -289,10 +298,8 @@ void boot_firmware(void) {
     }
 
     if (!fw_present) {
-        uart_write_str(UART0, "No firmware loaded. Please RESET device.\n");
-        while (1) {
-        }
-        return;
+        uart_write_str(UART0, "No firmware loaded. Resetting.\n");
+        SysCtlReset();
     }
 
     nl(UART0);
@@ -328,8 +335,11 @@ void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
     }
 }
 
-uint8_t erase_partition(uint32_t * start_idx, uint8_t length_in_kb) {
-    return 0;
+void erase_partition(uint32_t start_idx, uint8_t length_in_kb) {
+    for (int i = 0; i < length_in_kb; i++) {
+        uint32_t erase = start_idx + (i * 1024);
+        FlashErase(erase);
+    }
 }
 
 uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length, uint16_t message_length, uint32_t metadata) {
