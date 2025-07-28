@@ -127,8 +127,8 @@ int main(void) {
         FlashProgram(&start_version, MAX_VERSION, 4);
     }
 
-    erase_partition(METADATA_INCOMING_BASE, 2);
-    erase_partition(FW_INCOMING_BASE, 31);
+    erase_partition(METADATA_BASE, 2);
+    erase_partition(FW_BASE, 31);
 
     initialize_uarts(UART0);
 
