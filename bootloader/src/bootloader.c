@@ -306,7 +306,7 @@ void load_firmware(void) {
             page_addr += FLASH_PAGESIZE;
             data_index = 0;
 
-            // Check for firmware sizes over the maximum of 30kb + signature
+            // Check for firmware sizes over the maximum of 30KB + signature
             if (page_addr >= FW_INCOMING_BASE + (31 * 1024)) {
                 uart_write(UART0, ERROR);
                 SysCtlReset();
@@ -412,8 +412,6 @@ void boot_firmware(void) {
 Verify SHA-256 hashed & RSA-2048 PSS encrypted signature
 */
 uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t payload_length, uint16_t message_length, uint32_t metadata) {
-    nl(UART0);
-
     volatile uint32_t canary = canary_global;
     inOut = 0;
 
@@ -560,34 +558,6 @@ long program_flash(void * page_addr, unsigned char * data, unsigned int data_len
         return FlashProgram(&word, (uint32_t)page_addr + num_full_bytes, 4);
     } else {
         return FlashProgram((unsigned long *)data, (uint32_t)page_addr, data_len);
-    }
-}
-
-/*
-Given function for debug purposes for printing out multiple bytes easily
-*/
-void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
-    for (uint8_t * cursor = start; cursor < (start + len); cursor += 1) {
-        uint8_t data = *((uint8_t *)cursor);
-        uint8_t right_nibble = data & 0xF;
-        uint8_t left_nibble = (data >> 4) & 0xF;
-        char byte_str[3];
-        if (right_nibble > 9) {
-            right_nibble += 0x37;
-        } else {
-            right_nibble += 0x30;
-        }
-        byte_str[1] = right_nibble;
-        if (left_nibble > 9) {
-            left_nibble += 0x37;
-        } else {
-            left_nibble += 0x30;
-        }
-        byte_str[0] = left_nibble;
-        byte_str[2] = '\0';
-
-        uart_write_str(uart, byte_str);
-        uart_write_str(uart, " ");
     }
 }
 
