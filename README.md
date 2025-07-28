@@ -29,7 +29,7 @@ ______   ______     ______     __    __
 
 ```
 
-By Reuel Joseph, Ethan Fuks, Arthur Zhu, Irene Lin, Daniel Miao
+By Reuel Joseph, Ethan Fuks, Arthur Zhu, Irene Lin, and Daniel Miao
 as part of the MIT BWSI Embedded Security and Hardware Hacking program
 
 With our secure (TM) automotive bootloader, we guarantee that cars running our software will be unhackable (provided hacking is not attempted).
@@ -68,7 +68,24 @@ With our secure (TM) automotive bootloader, we guarantee that cars running our s
 ```
 ## Get Started
 
-Run the following commands in order.
+
+Prerequisite installation
+- Make
+- lm4tools
+```
+python3 -m venv venv
+source venv/bin/activate
+pip install pyserial
+pip install pycryptodome
+cd lib
+git clone https://github.com/wolfSSL/wolfssl
+cd ..
+cd firmware
+make
+cd ..
+```
+
+Run the following commands in order
 
 Building and flashing the bootloader
 ```
@@ -78,9 +95,6 @@ lm4flash ../bootloader/bin/bootloader.bin
 ```
 Protect the firmware `fw_protect.py`
 ```
-cd ../firmware
-make
-cd ../tools
 python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2"
 ```
 Reset the TM4C by pressing the RESET button, then run `fw_update.py`
@@ -337,4 +351,4 @@ This script opens a serial channel with the bootloader, then writes the firmware
 
 ## Using WolfSSL
 
-WolfSSL is an SSL library designed for embedded systems. Using the WolfSSL library, we incorporated multiple functions including those from aes.h and rsa.h to complete encryption and decryption. Make sure to ```git clone https://github.com/wolfSSL/wolfssl``` to `lib/wolfssl`
+WolfSSL is an SSL library designed for embedded systems. Using the WolfSSL library, we incorporated multiple functions including those from aes.h and rsa.h to complete encryption and decryption. Make sure to ```git clone https://github.com/wolfSSL/wolfssl``` to `lib`
