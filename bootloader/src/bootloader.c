@@ -127,6 +127,9 @@ int main(void) {
         FlashProgram(&start_version, MAX_VERSION, 4);
     }
 
+    erase_partition(METADATA_INCOMING_BASE, 2);
+    erase_partition(FW_INCOMING_BASE, 31);
+
     initialize_uarts(UART0);
 
     uart_write_str(UART0, "Welcome to the BWSI Vehicle Update Service!\n");
@@ -258,6 +261,13 @@ void load_firmware(void) {
         for (int i = 0; i < frame_length; ++i) {
             data[data_index] = uart_read(UART0, BLOCKING, &read);
             data_index += 1;
+
+            if (data_index > FLASH_PAGESIZE) {
+                uart_write_str(UART0, "data frame too large");
+                uart_write(UART0, ERROR);
+                SysCtlReset();
+                return;
+            }
         }
 
         if (data_index == FLASH_PAGESIZE || frame_length == 0) {
@@ -273,6 +283,8 @@ void load_firmware(void) {
             if (page_addr >= FW_INCOMING_BASE + (30 * 1024)) {
                 uart_write_str(UART0, "fw too large");
                 uart_write(UART0, ERROR);
+                SysCtlReset();
+                return;
             }
 
             if (frame_length == 0) {
