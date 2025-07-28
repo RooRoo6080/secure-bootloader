@@ -97,35 +97,23 @@ The Bootloader manages which firmware gets updated to the TM4C, and will start t
 
 The bootloader.c file contains all the essential instructions and functions to successfully run the system and secure firmware.
 ```
-load_firmware()		Reads incoming firmware and its metadata from 
-					UART, performs version checks, and writes it to 
-					FW_INCOMING_BASE
+load_firmware()		Reads incoming firmware and its metadata from UART, performs version checks, and writes it to FW_INCOMING_BASE
 
-boot_firmware()		Manages the firmware update process by verifying 
-					incoming firmware, moving it to FW_CHECK_BASE, 
-					verifying again, decrypting, moving to FW_BASE, and 
-					then executing it
+boot_firmware()		Manages the firmware update process by verifying incoming firmware, moving it to FW_CHECK_BASE, verifying again, decrypting, moving to FW_BASE, and then executing it
 
-verify_signature()	Verifies the SHA-256 hashed and RSA-2048 PSS 
-					encrypted signature of firmware and metadata
+verify_signature()	Verifies the SHA-256 hashed and RSA-2048 PSS encrypted signature of firmware and metadata
 
-move_and_decrypt()	Moves data from an origin to a destination while 
-					performing AES decryption in 1KB chunks
+move_and_decrypt()	Moves data from an origin to a destination while performing AES decryption in 1KB chunks
 
-move_firmware()		Moves a specified number of KB of data 
-					from an origin address to a destination address in 
-					flash memory
+move_firmware()		Moves a specified number of KB of data from an origin address to a destination address in flash memory
 
-erase_partition()	Erases a specified number of flash pages starting 
-					from a given memory address
+erase_partition()	Erases a specified number of flash pages starting from a given memory address
 
-check_canary()		Verifies a stack canary to detect and prevent 
-					stack overflow attacks
+check_canary()		Verifies a stack canary to detect and prevent stack overflow attacks
 
 program_flash()		Erases a flash page and then programs data to it
 
-uart_write_str_length() Modification of uart_write_str, but it stops at
-                    			a specified length OR a null terminator
+uart_write_str_length() Modification of uart_write_str, but it stops ata specified length OR a null terminator
 
 ```
 #### Memory Map
