@@ -90,8 +90,8 @@ const uint32_t canary_global = 0xDEADBEEF;
 
 void check_canary(uint32_t canary) {
     if (canary != canary_global) {
-        uart_write_str(UART0, "Pls no stack buffer overflow attacks ty fam\n");
         SysCtlReset();
+        while (1) {}
     }
 }
 
@@ -102,9 +102,9 @@ int main(void) {
     // THIS MAY BRICK THE TIVA
     // DO NOT RUN UNCOMMENTED UNLESS YOU HAVE A WAY TO UNBRICK IT
 
-    // HWREG(FLASH_FMA) = 0x75100000;
-    // HWREG(FLASH_FMD) = HWREG(FLASH_BOOTCFG) & 0x7FFFFFFC;
-    // HWREG(FLASH_FMC) = FLASH_FMC_WRKEY | FLASH_FMC_COMT;
+    HWREG(FLASH_FMA) = 0x75100000;
+    HWREG(FLASH_FMD) = HWREG(FLASH_BOOTCFG) & 0x7FFFFFFC;
+    HWREG(FLASH_FMC) = FLASH_FMC_WRKEY | FLASH_FMC_COMT;
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
     while (!SysCtlPeripheralReady(SYSCTL_PERIPH_EEPROM0)) {
@@ -197,7 +197,7 @@ void load_firmware(void) {
     message_length |= (uint32_t)rcv << 8;
 
     if (message_length > 1024) {
-        uart_write_str(UART0, "Message length over 1kb\n");
+        // uart_write_str(UART0, "Message length over 1kb\n");
         uart_write(UART0, ERROR);
         SysCtlReset();
     }
@@ -231,7 +231,7 @@ void load_firmware(void) {
     uint16_t old_version = (uint16_t)(*(uint32_t *)MAX_VERSION);
 
     if (version != 0 && version < old_version) {
-        uart_write_str(UART0, "Error: Old firmware version");
+        // uart_write_str(UART0, "Error: Old firmware version");
         uart_write(UART0, ERROR);
         SysCtlReset();
         return;
@@ -259,7 +259,7 @@ void load_firmware(void) {
             data_index += 1;
 
             if (data_index > FLASH_PAGESIZE) {
-                uart_write_str(UART0, "data frame too large");
+                // uart_write_str(UART0, "data frame too large");
                 uart_write(UART0, ERROR);
                 SysCtlReset();
                 return;
@@ -277,7 +277,7 @@ void load_firmware(void) {
             data_index = 0;
 
             if (page_addr >= FW_INCOMING_BASE + (31 * 1024)) {
-                uart_write_str(UART0, "fw too large");
+                // uart_write_str(UART0, "fw too large");
                 uart_write(UART0, ERROR);
                 SysCtlReset();
                 return;
@@ -342,7 +342,7 @@ void boot_firmware(void) {
             erase_partition(FW_CHECK_BASE, 31);
 
             if (move_firmware(METADATA_INCOMING_BASE, METADATA_CHECK_BASE, 2) || move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, 31)) {
-                uart_write_str(UART0, "Failed to move firmware to check partition\n");
+                // uart_write_str(UART0, "Failed to move firmware to check partition\n");
                 SysCtlReset();
             }
         } else {
@@ -353,7 +353,7 @@ void boot_firmware(void) {
     }
 
     if (*(uint32_t *)METADATA_CHECK_BASE == 0xFFFFFFFF) {
-        uart_write_str(UART0, "No firmware found in check partition\n");
+        // uart_write_str(UART0, "No firmware found in check partition\n");
         SysCtlReset();
     }
 
@@ -366,12 +366,12 @@ void boot_firmware(void) {
         erase_partition(FW_BASE, 31);
 
         if (move_firmware(METADATA_CHECK_BASE, METADATA_BASE, 2)) {
-            uart_write_str(UART0, "Failed moving metadata to base\n");
+            // uart_write_str(UART0, "Failed moving metadata to base\n");
             SysCtlReset();
         }
 
         if (move_and_decrypt(FW_CHECK_BASE, FW_BASE, 31)) {
-            uart_write_str(UART0, "Failed moving and decrypting firmware to base\n");
+            // uart_write_str(UART0, "Failed moving and decrypting firmware to base\n");
             SysCtlReset();
         }
 
@@ -387,7 +387,7 @@ void boot_firmware(void) {
               "BX R0\n\t");
 
     } else {
-        uart_write_str(UART0, "Firmware in check partition failed signature verification\n");
+        // uart_write_str(UART0, "Firmware in check partition failed signature verification\n");
         SysCtlReset();
     }
 }
@@ -448,7 +448,7 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
     int decry_sig_len = wc_RsaPSS_VerifyInline(signature_buffer, 256, &decry_sig_arr, WC_HASH_TYPE_SHA256, WC_MGF1SHA256, &pub);
     if (decry_sig_len > 0) {
     } else {
-        uart_write_str(UART0, "decry_sig_len < 0, failed verification\n");
+        // uart_write_str(UART0, "decry_sig_len < 0, failed verification\n");
         wc_FreeRsaKey(&pub);
         wc_Sha256Free(sha256);
         return 1;
