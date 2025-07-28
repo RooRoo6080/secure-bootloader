@@ -125,7 +125,7 @@ check_canary()		Verifies a stack canary to detect and prevent
 program_flash()		Erases a flash page and then programs data to it
 
 uart_write_str_length() Modification of uart_write_str, but it stops at
-                    a specified length OR a null terminator
+                    			a specified length OR a null terminator
 
 ```
 #### Memory Map
