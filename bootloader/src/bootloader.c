@@ -63,7 +63,7 @@ uint8_t verify_signature(uint32_t, uint32_t, uint32_t, uint16_t, uint32_t);
 uint8_t move_and_decrypt(uint32_t, uint32_t, uint16_t);
 uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 
-#define METADATA_BASE 0xFC00
+#define METADATA_BASE 0xFB00
 #define METADATA_CHECK_BASE 0x28000
 #define METADATA_INCOMING_BASE 0x30000
 #define FW_BASE 0x10000
@@ -200,27 +200,32 @@ void load_firmware(void) {
         uart_write_str(UART0, "Message length over 1kb\n");
         uart_write(UART0, ERROR);
         SysCtlReset();
-    } else if (message_length > (1024 - 6)) {
-        for (int i = 0; i < message_length; i++) {
-            rcv = uart_read(UART0, BLOCKING, &read);
-            data[data_index] = rcv;
-            data_index++;
-            if (data_index == FLASH_PAGESIZE || frame_length == 0) {
-                if (program_flash((uint8_t *)page_addr, data, data_index)) {
-                    uart_write(UART0, ERROR);
-                    SysCtlReset();
-                    return;
-                }
-
-                page_addr += FLASH_PAGESIZE;
-                data_index = 0;
-            }
-        }
     }
+
+    uint32_t metadata_page_address = METADATA_INCOMING_BASE;
+
     for (int i = 0; i < message_length; i++) {
         rcv = uart_read(UART0, BLOCKING, &read);
         data[data_index] = rcv;
         data_index++;
+        if (data_index == FLASH_PAGESIZE) {
+            if (program_flash((uint32_t *)metadata_page_address, data, data_index)) {
+                uart_write(UART0, ERROR);
+                SysCtlReset();
+                return;
+            }
+
+            metadata_page_address += FLASH_PAGESIZE;
+            data_index = 0;
+        }
+    }
+    data[data_index] = '\0';
+    data_index++;
+
+    if (program_flash((uint32_t *)metadata_page_address, data, data_index)) {
+        uart_write(UART0, ERROR);
+        SysCtlReset();
+        return;
     }
 
     uint16_t old_version = (uint16_t)(*(uint32_t *)MAX_VERSION);
@@ -234,15 +239,6 @@ void load_firmware(void) {
         uint32_t new_version = (uint32_t)version;
         FlashErase(MAX_VERSION);
         FlashProgram(&new_version, MAX_VERSION, 4);
-    }
-
-    data[data_index] = '\0';
-    data_index++;
-
-    if (program_flash((uint32_t *)METADATA_INCOMING_BASE, data, data_index)) {
-        uart_write(UART0, ERROR);
-        SysCtlReset();
-        return;
     }
 
     check_canary(canary);
@@ -280,7 +276,7 @@ void load_firmware(void) {
             page_addr += FLASH_PAGESIZE;
             data_index = 0;
 
-            if (page_addr >= FW_INCOMING_BASE + (30 * 1024)) {
+            if (page_addr >= FW_INCOMING_BASE + (31 * 1024)) {
                 uart_write_str(UART0, "fw too large");
                 uart_write(UART0, ERROR);
                 SysCtlReset();
