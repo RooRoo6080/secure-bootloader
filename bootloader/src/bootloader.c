@@ -62,6 +62,7 @@ void erase_partition(uint32_t, uint8_t);
 uint8_t verify_signature(uint32_t, uint32_t, uint32_t, uint16_t, uint32_t);
 uint8_t move_and_decrypt(uint32_t, uint32_t, uint16_t);
 uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
+void update_max_version(uint16_t);
 
 #define METADATA_BASE 0xFC00
 #define METADATA_CHECK_BASE 0x28000
@@ -72,6 +73,10 @@ uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 
 #define FLASH_PAGESIZE 1024
 #define FLASH_WRITESIZE 4
+
+#define AES_KEY_ADDRESS 0x200
+#define RSA_PUB_KEY_ADDRESS 0x400
+#define MAX_VERSION_ADDRESS 0x600
 
 unsigned char data[FLASH_PAGESIZE + 6];
 
@@ -84,6 +89,8 @@ Sha256 sha256[1];
 byte aes_out[1024];
 uint32_t aes_key_eeprom[16];
 uint32_t rsa_pub_eeprom[294];
+uint32_t max_version = 1;
+
 
 const uint32_t canary_global = 0xDEADBEEF;
 
@@ -107,10 +114,13 @@ int main(void) {
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_EEPROM0);
     while (!SysCtlPeripheralReady(SYSCTL_PERIPH_EEPROM0)) {
+        //wait for EEPROM to be ready
     }
     EEPROMInit();
-    EEPROMProgram((uint32_t *)aes_key, 0x200, sizeof(aes_key));
-    EEPROMProgram((uint32_t *)rsa_pub_key, 0x400, sizeof(rsa_pub_eeprom));
+    EEPROMProgram((uint32_t *)aes_key, AES_KEY_ADDRESS, sizeof(aes_key));
+    EEPROMProgram((uint32_t *)rsa_pub_key, RSA_PUB_KEY_ADDRESS, sizeof(rsa_pub_eeprom));
+    EEPROMProgram(&max_version, MAX_VERSION_ADDRESS, 4);
+
 
     for (int i = 0; i < 16; i++) {
         aes_key[i] = '\0';
@@ -190,34 +200,42 @@ void load_firmware(void) {
         uart_write(UART0, ERROR);
         SysCtlReset();
     }
+
     for (int i = 0; i < message_length; i++) {
         rcv = uart_read(UART0, BLOCKING, &read);
         data[data_index] = rcv;
         data_index++;
     }
 
-    uint16_t old_version = *(uint16_t *)(METADATA_BASE + 2);
-    if (old_version == 0xFFFF) {
-        old_version = 1;
-    }
+    //check version info
+    EEPROMRead(&max_version, MAX_VERSION_ADDRESS, 4);
+    // uart_write_str(UART0, "Max version: ");
+    // uart_write(UART0, max_version);
+    // nl(UART0);
 
-    if (version != 0 && version < old_version) {
+    if (version != 0 && version < max_version) {
         uart_write_str(UART0, "Error: Old firmware version");
         uart_write(UART0, ERROR);
         SysCtlReset();
         return;
-    } else if (version == 0) {
-        data[2] = old_version;
-    }
+    } 
+    
+    // if (version != 0) {
+    //     max_version = version;
+    //     EEPROMProgram((uint32_t *)&max_version, MAX_VERSION_ADDRESS, 4);
+    // }
 
     data[data_index] = '\0';
     data_index++;
+
+    check_canary(canary);
 
     if (program_flash((uint32_t *)METADATA_INCOMING_BASE, data, data_index)) {
         uart_write(UART0, ERROR);
         SysCtlReset();
         return;
     }
+
     check_canary(canary);
 
     data_index = 0;
@@ -296,8 +314,20 @@ void boot_firmware(void) {
 
     if (incoming_fw_present) {
         uint16_t size = *(uint16_t *)METADATA_INCOMING_BASE;
+        uint16_t version = *(uint16_t *)(METADATA_INCOMING_BASE + 2);
         uint16_t message_length = *(uint16_t *)(METADATA_INCOMING_BASE + 4);
         uint32_t sign_add = FW_INCOMING_BASE + size;
+
+        
+        uart_write_str(UART0, "size: ");
+        uart_write_hex(UART0, size);
+        nl(UART0);
+        uart_write_str(UART0, "Incoming firmware version: ");
+        uart_write_hex(UART0, version);
+        nl(UART0);
+        uart_write_str(UART0, "message length: ");
+        uart_write_hex(UART0, message_length);
+
 
         if (verify_signature(sign_add, FW_INCOMING_BASE, size, message_length, METADATA_INCOMING_BASE) == 0) {
 
@@ -338,6 +368,9 @@ void boot_firmware(void) {
             SysCtlReset();
         }
 
+        uint16_t version = (uint16_t)(METADATA_BASE + 2);
+        update_max_version(version);
+
         uart_write_str(UART0, "Booting firmware...\n");
         nl(UART0);
 
@@ -353,6 +386,25 @@ void boot_firmware(void) {
         uart_write_str(UART0, "Firmware in check partition failed signature verification\n");
         SysCtlReset();
     }
+}
+
+void update_max_version(uint16_t version){
+        EEPROMRead(&max_version, MAX_VERSION_ADDRESS, 4);
+        
+        if(version < max_version){
+            uart_write_str(UART0, "Error: Old firmware version");
+            uart_write(UART0, ERROR);
+            SysCtlReset();
+        }
+
+        if (max_version == 0xFFFF) {
+            max_version = 1;
+        }
+
+        if (version != 0) {
+            max_version = version;
+            EEPROMProgram(&max_version, MAX_VERSION_ADDRESS, 4);
+        }
 }
 
 void uart_write_hex_bytes(uint8_t uart, uint8_t * start, uint32_t len) {
@@ -395,7 +447,7 @@ uint8_t verify_signature(uint32_t signature_idx, uint32_t payload_idx, uint32_t 
 
     wc_InitRsaKey(&pub, NULL);
 
-    EEPROMRead(rsa_pub_eeprom, 0x400, sizeof(rsa_pub_eeprom));
+    EEPROMRead(rsa_pub_eeprom, RSA_PUB_KEY_ADDRESS, sizeof(rsa_pub_eeprom));
     wc_RsaPublicKeyDecode((byte *)rsa_pub_eeprom, &inOut, &pub, 294);
     for (int i = 0; i < 294; i++) {
         rsa_pub_eeprom[i] = '\0';
