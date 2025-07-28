@@ -24,12 +24,11 @@ Standards used:
  - AES-128; CBC mode
     * no need for anything more complicated (GCM) that includes authenticity
     * speed benefits of CTR would go unused
- - SHA256 hashing; PKCS #1 v1.5
-    * could also use more secure PSS, though harder on microcontroller end
+ - SHA256 hashing; PSS
  - RSA 2048-bit encryption
  
-
 """
+
 import argparse
 import struct
 import hashlib
@@ -43,6 +42,7 @@ from Crypto.Util.Padding import pad
 
 KEY_PATH = 'secret_build_output.txt'
 
+"""Function to protect firmware by appending version and message, encrypting, and signing"""
 def protect_firmware(infile, outfile, version, message):
 
     # version # checks
@@ -114,7 +114,7 @@ def protect_firmware(infile, outfile, version, message):
     with open(outfile, "wb+") as outfile:
         outfile.write(final_blob)
 
-
+"""Main function to parse command line arguments and call the protect_firmware function"""
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Firmware Update Tool")
     parser.add_argument(

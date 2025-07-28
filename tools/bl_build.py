@@ -1,14 +1,3 @@
-#!/usr/bin/env python
-
-# Copyright 2024 The MITRE Corporation. ALL RIGHTS RESERVED
-# Approved for public release. Distribution unlimited 23-02181-25.
-
-"""
-Bootloader Build Tool
-
-This tool is responsible for building the bootloader from source and copying
-the build outputs into the host tools directory for programming.
-"""
 import os
 import pathlib
 import subprocess
@@ -22,7 +11,7 @@ BOOTLOADER_DIR = os.path.join(REPO_ROOT, "bootloader")
 SECRET_BUILD_OUTPUT_PATH = "secret_build_output.txt"
 PUBLIC_KEY_C_FILE_PATH = os.path.join(BOOTLOADER_DIR, "inc", "keys.h")
 
-
+"""builds the bootloader from source"""
 def make_bootloader() -> bool:
     # Build the bootloader from source.
 
@@ -34,7 +23,7 @@ def make_bootloader() -> bool:
     # Return True if make returned 0, otherwise return False.
     return status == 0
 
-
+"""generates RSA keys and AES key, saves them to a header file and a JSON file"""
 def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
 
     # creating RSA keys
@@ -69,7 +58,7 @@ def generate_rsa_keys(public_key_c_path, secret_keys_json_path):
         f.write("const byte aes_iv[] = {" + ", ".join(
             f"0x{b:02x}" for b in iv) + "};\n")
 
-
+"""main function to generate RSA keys and build the bootloader"""
 if __name__ == "__main__":
     generate_rsa_keys(PUBLIC_KEY_C_FILE_PATH, SECRET_BUILD_OUTPUT_PATH)
 
