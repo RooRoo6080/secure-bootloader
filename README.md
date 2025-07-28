@@ -118,72 +118,72 @@ uart_write_str_length() Modification of uart_write_str, but it stops ata specifi
 ```
 #### Memory Map
 ```
-+-------------------------+ 0x40000
-|                         |
-|      MAX_VERSION        |
-|       (0x28000)         |
-|                         |
-+-------------------------+
-|                         |
-|   METADATA_INCOMING_BASE|
-|       (0x30000)         |
-|                         |
-+-------------------------+
-|                         |
-|   METADATA_CHECK_BASE   |
-|       (0x28000)         |
-|                         |
-+-------------------------+
-|                         |
-|                         |
-|    FW_INCOMING_BASE     |
-|       (0x20000)         |
-|                         |
-+-------------------------+
-|                         |
-|     FW_CHECK_BASE       |
-|       (0x18000)         |
-|                         |
-+-------------------------+
-|                         |
-|         FW_BASE         |
-|       (0x10000)         |
-|                         |
-+-------------------------+
-|                         |
-|    METADATA_BASE        |
-|       (0xFB00)          |
-|                         |
-+-------------------------+ 0x0
++--------------------------+ 0x40000
+|                          |
+|       MAX_VERSION        |
+|        (0x28000)         |
+|                          |
++--------------------------+
+|                          |
+|   METADATA_INCOMING_BASE |
+|        (0x30000)         |
+|                          |
++--------------------------+
+|                          |
+|    METADATA_CHECK_BASE   |
+|        (0x28000)         | 
+|                          |
++--------------------------+
+|                          |
+|                          |
+|     FW_INCOMING_BASE     |
+|        (0x20000)         |
+|                          |
++--------------------------+
+|                          |
+|      FW_CHECK_BASE       |
+|        (0x18000)         |
+|                          |
++--------------------------+
+|                          |
+|          FW_BASE         |
+|        (0x10000)         |
+|                          |
++--------------------------+
+|                          |
+|       METADATA_BASE      |
+|         (0xFB00)         |
+|                          |
++--------------------------+ 0x0
 ```
 #### EEPROM Memory Map
 ```
-+-------------------------+
-|                         |
-| RSA_PUB_KEY_EEPROM_LOCATION
-|       (0x400)           |
-|                         |
-+-------------------------+
-|                         |
-| AES_KEY_EEPROM_LOCATION |
-|       (0x200)           |
-|                         |
-+-------------------------+ 0x0
++---------------------------+
+|                           |
+|RSA_PUB_KEY_EEPROM_LOCATION|
+|         (0x400)           |
+|                           |
++---------------------------+
+|                           |
+|  AES_KEY_EEPROM_LOCATION  |
+|        (0x200)            |
+|                           |
++---------------------------+ 0x0
 ```
 #### Boot order of operations
 ```
-+---------------------+
-|                     |
-|  New Firmware Load  |
-| (into *_INCOMING_BASE)
-|                     |
-+---------------------+
++----------------------+
+|                      |
+|  New Firmware Load   |
+|(into *_INCOMING_BASE)|
+|                      |
++----------------------+
         |
         v
-+---------------------+
-| Verify Signature of |
-| *_INCOMING_BASE Data|
-+---------------------+
++----------------------+
+| Verify Signature of  |
+| *_INCOMING_BASE Data |
++----------------------+
         |
         |  NO
         +-------+
@@ -194,17 +194,17 @@ uart_write_str_length() Modification of uart_write_str, but it stops ata specifi
         |  [EXIT]
         |
         v YES
-+---------------------+
-|   Move to           |
-|  *_CHECK_BASE       |
-|  (Permissions: rw)  |
-+---------------------+
++----------------------+
+|   Move to            |
+|  *_CHECK_BASE        |
+|  (Permissions: rw)   |
++----------------------+
         |
         v
-+---------------------+
-| Verify Signature of |
-| *_CHECK_BASE Data   |
-+---------------------+
++----------------------+
+| Verify Signature of  |
+| *_CHECK_BASE Data    |
++----------------------+
         |
         |  NO
         +-------+
@@ -214,12 +214,12 @@ uart_write_str_length() Modification of uart_write_str, but it stops ata specifi
         |    [EXIT]
         |
         v YES
-+---------------------+
-|   Decrypt Data      |
-|   Move to           |
-|  *_BASE             |
-|  (Permissions: rwx) |
-+---------------------+
++----------------------+
+|   Decrypt Data       |
+|   Move to            |
+|  *_BASE              |
+|  (Permissions: rwx)  |
++----------------------+
         |
         |  NO (e.g., decryption fails, move fails)
         +-------+
@@ -229,11 +229,11 @@ uart_write_str_length() Modification of uart_write_str, but it stops ata specifi
         |    [EXIT]
         |
         v YES
-+---------------------+
-|   Run Decrypted     |
-|   Firmware from     |
-|   *_BASE            |
-+---------------------+
++----------------------+
+|   Run Decrypted      |
+|   Firmware from      |
+|   *_BASE             |
++----------------------+
 ```
 
 #### Additional protections & features
@@ -295,26 +295,27 @@ This script bundles the version and release message with the firmware binary to 
 
 This script opens a serial channel with the bootloader, then writes the firmware metadata and binary broken into 256-byte data frames to the bootloader to update the firmware to a TM4C with a provisioned bootloader. 
 ```
-+------------------+         +---------------------+
-|                  |         |                     |
-| Firmware Updater |         |     Bootloader      |
-|      Tool        |         |                     |
-+------------------+         +---------------------+
++--------------------+         +---------------------+
+|                    |         |                     |
+|  Firmware Updater  |         |     Bootloader      |
+|       Tool         |         |                     |
++--------------------+         +---------------------+
         |                            ^
-        | send_metadata(metadata)    |
-        | (Handshake: "U")           |
+        |   send_metadata(metadata)  |
+        |      (Handshake: "U")      |
         |--------------------------->|
         |                            |
-        |       Wait for "U" response|
+        |    Wait for "U" response   |
         |<---------------------------|
+        |      Send metadata         |
+        (size, version, message_length)
         |                            |
-        | Send metadata (size, version, message_length)
         |--------------------------->|
         |                            |
-        |       Wait for RESP_OK (0x00)
+        |   Wait for RESP_OK (0x00)  |
         |<---------------------------|
         |                            |
-        | update(firmware_blob)      |
+        |   update(firmware_blob)    |
         |                            |
         | For each frame in firmware:|
         |   Construct frame:         |
@@ -322,13 +323,13 @@ This script opens a serial channel with the bootloader, then writes the firmware
         |   [Data (variable)]        |
         |--------------------------->|
         |                            |
-        |       Wait for RESP_OK (0x00)
+        |   Wait for RESP_OK (0x00)  |
         |<---------------------------|
-        |                            |
-        | Send zero-length frame (0x00 0x00) to signal end
+        |   Send zero-length frame   |
+        |  (0x00 0x00) to signal end |
         |--------------------------->|
         |                            |
-        |       Wait for RESP_OK (0x00)
+        |   Wait for RESP_OK (0x00)  |
         |<---------------------------|
         |                            |
         v                            |
