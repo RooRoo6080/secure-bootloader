@@ -258,7 +258,7 @@ uart_write_str_length() Modification of uart_write_str, but it stops at
 
 ## Tools
 
-There are four python scripts in the `tools` directory which are used to:
+There are three python scripts in the `tools` directory which are used to:
 1. Provision the bootloader
 2. Generate keys
 3. Bundle and encrypt the firmware
