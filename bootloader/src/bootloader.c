@@ -69,6 +69,7 @@ uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
 #define FW_BASE 0x10000
 #define FW_CHECK_BASE 0x18000
 #define FW_INCOMING_BASE 0x20000
+#define MAX_VERSION 0x38000
 
 #define FLASH_PAGESIZE 1024
 #define FLASH_WRITESIZE 4
@@ -117,6 +118,13 @@ int main(void) {
     }
     for (int i = 0; i < 294; i++) {
         rsa_pub_key[i] = '\0';
+    }
+
+    uint16_t version = (uint16_t)(*(uint32_t *)MAX_VERSION);
+    uint32_t start_version = 1;
+    if (version == 0xFFFF) {
+        FlashErase(MAX_VERSION);
+        FlashProgram(&start_version, MAX_VERSION, 4);
     }
 
     initialize_uarts(UART0);
@@ -189,7 +197,7 @@ void load_firmware(void) {
         uart_write_str(UART0, "Message length over 1kb\n");
         uart_write(UART0, ERROR);
         SysCtlReset();
-    } else if (message_length > 1024 - 6) {
+    } else if (message_length > (1024 - 6)) {
         for (int i = 0; i < message_length; i++) {
             rcv = uart_read(UART0, BLOCKING, &read);
             data[data_index] = rcv;
@@ -212,18 +220,17 @@ void load_firmware(void) {
         data_index++;
     }
 
-    uint16_t old_version = *(uint16_t *)(METADATA_BASE + 2);
-    if (old_version == 0xFFFF) {
-        old_version = 1;
-    }
+    uint16_t old_version = (uint16_t)(*(uint32_t *)MAX_VERSION);
 
     if (version != 0 && version < old_version) {
         uart_write_str(UART0, "Error: Old firmware version");
         uart_write(UART0, ERROR);
         SysCtlReset();
         return;
-    } else if (version == 0) {
-        data[2] = old_version;
+    } else if (version != 0) {
+        uint32_t new_version = (uint32_t)version;
+        FlashErase(MAX_VERSION);
+        FlashProgram(&new_version, MAX_VERSION, 4);
     }
 
     data[data_index] = '\0';
@@ -262,6 +269,11 @@ void load_firmware(void) {
 
             page_addr += FLASH_PAGESIZE;
             data_index = 0;
+
+            if (page_addr >= FW_INCOMING_BASE + (30 * 1024)) {
+                uart_write_str(UART0, "fw too large");
+                uart_write(UART0, ERROR);
+            }
 
             if (frame_length == 0) {
                 uart_write(UART0, OK);
