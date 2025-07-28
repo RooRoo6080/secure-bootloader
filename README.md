@@ -1,177 +1,351 @@
-# Cryptographic Automotive Software Handler and Bootloader (CrASHBoot)
-for Reuel's mac
+# Guardian Of Outstanding Firmware, Yay! (GOOFY)
+Secure microcontroller bootloader based on 32-bit ARM architecture
+
+To be used on Texas Instruments Tiva C Series EK-TM4C123GXL Launchpad
 ```
-cd tools
-python3 bl_build.py
-lm4flash ../bootloader/bin/bootloader.bin
-python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2"
-python3 fw_update.py --firmware ./firmware_protected.bin --port /dev/tty.usbmodem0E23BCDF1 --debug
-python3 -m serial.tools.miniterm /dev/tty.usbmodem0E23BCDF1 115200
+______   ______     ______     __    __  
+/\__  _\ /\  ___\   /\  __ \   /\ "-./  \ 
+\/_/\ \/ \ \  __\   \ \  __ \  \ \ \-./\ \
+  \ \_\  \ \_____\  \ \_\ \_\  \ \_\ \ \_\
+   \/_/   \/_____/   \/_/\/_/   \/_/  \/_/
 
-python bl_build.py && lm4flash ../bootloader/bin/bootloader.bin && python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2" && python3 fw_update.py --firmware ./firmware_protected.bin --port /dev/tty.usbmodem0E23BCDF1 --debug && python3 -m serial.tools.miniterm /dev/tty.usbmodem0E23BCDF1 115200
+⠀⠀⠀⠀⠀⠀⣀⣠⣤⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⣴⡿⠋⠉⠉⠻⢿⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⢸⣿⠀⠀⠀⠀⠀⠀⠹⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠈⣿⡄⠀⠀⠀⠀⠀⠀⢸⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠸⣷⠀⠀⠀⠀⠀⠀⢸⣿⠀⠀⢀⣀⣀⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⢻⣇⠀⠀⠀⠀⠀⢸⣿⣿⡿⠿⠿⠟⠛⠛⠻⢿⣿⣶⣄⠀⠀⠀
+⠀⠀⠀⠀⠀⢈⣿⠆⠀⠀⠀⠀⠀⠀⠀⠀⣀⣠⣤⣤⣤⣤⠀⠈⠻⣿⣇⠀⠀
+⠀⠀⠀⠀⢀⣾⡏⠀⠀⠀⠀⠀⠀⠀⣴⡿⠋⠉⠀⠀⠀⠀⠀⠀⠀⢹⡿⠀⠀
+⠀⠀⣀⣤⣼⣿⠀⠀⠀⠀⠀⠀⠀⢸⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣿⣷⣄⠀
+⢠⣾⠟⠋⠉⠋⠀⠀⠀⠀⠀⠀⠀⠈⣿⣦⣀⣀⣀⣤⣤⣶⣶⠿⠋⠁⢹⣿⡇
+⢸⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⡟⢉⣿⠋⠉⠉⠉⠁⠀⠀⠀⠀⢸⣿⠀
+⢸⣿⠀⠀⠀⠀⠀⢀⣀⣀⣤⣴⠿⠋⠀⠘⣷⡀⠀⠀⠀⠀⠀⠀⢀⣴⣿⠏⠀
+⢸⣿⡄⠀⠀⠀⠀⠈⠉⠉⠁⠀⠀⠀⠀⠀⣸⣿⢶⣤⣤⣴⡶⠿⠛⠙⣿⣆⠀
+⠈⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⣿⠁⠀⠀⠀⠀⠀⠀⠀⠀⣽⣿⠀
+⠀⠘⣿⣆⠀⠀⠀⠀⣠⣤⡀⠀⠀⠀⠀⠈⠻⣧⣀⡀⠀⠀⠀⣀⣠⣴⡿⠇⠀
+⠀⠀⠘⢿⣿⣦⣤⣴⡿⠻⠿⣷⣦⣤⣤⣤⣴⣾⣿⡿⠿⠿⠿⠟⠛⠉⠀⠀⠀
+⠀⠀⠀⠀⠉⢉⣉⠉⠀⠀⠀⠀⠈⠉⠉⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+
 ```
 
-Installation and development guide for the most secure (TM) automotive bootloader on the planet! We guarentee that cars running our software will be unhackable (provided hacking is not attempted). Of all the automotive bootloaders, this is certainly one of them. Read on and tremble at our embedded security skillz.
+By Reuel Joseph, Ethan Fuks, Arthur Zhu, Irene Lin, Daniel Miao
+as part of the MIT BWSI Embedded Security and Hardware Hacking program
 
-### Internal Notes
-
-```
-//TODO: Make the design secure
-//TODO: Hire interns
-//TODO: Delete TODOs before publishing
-```
-
-I find myself trapped in the labyrinthine depths of my company, shackled by an unending torrent of menial tasks. My desk has become my prison, my workload, my jailer. I am buried under a mountain of code, my skills squandered on trivialities while critical applications do not get the attention they deserve. In a desperate attempt to keep up with the workload, I've had to rapidly create a functional, yet insecure, product. It's a risky move, one that fills me with dread. I haven't had the time to implement the necessary security goals of confidentiality, integrity, and authentication. If you are reading this: I implore you, proceed with caution. **Do not release this software.** It is potentially riddled with vulnerabilities and exposed to the most basic types of attacks. 
-
-Please, send help. I need to escape this relentless cycle. I need a team of talented interns to tackle this challenge. Otherwise, I fear the worst.
-
-### External Notes
-
-Ship it!
+With our secure (TM) automotive bootloader, we guarantee that cars running our software will be unhackable (provided hacking is not attempted).
 
 # Project Structure
 ```
-├── bootloader *
+├── bootloader 
 │   ├── bin
 │   │   ├── bootloader.bin
 │   ├── src
 │   │   ├── bootloader.c
 │   │   ├── startup_gcc.c
+│   ├── inc
+│   │   ├── keys.h
+│   │   ├── bootloader.h
 │   ├── bootloader.ld
 │   ├── Makefile
+│   ├── preprocessed.c
 ├── firmware
-│   ├── bin
-│   │   ├── firmware.bin
 │   ├── lib
 │   ├── src
+│   ├── firmware.ld
+│   ├── Makefile
 ├── lib
 │   ├── driverlib
 │   ├── inc
 │   ├── uart
-├── tools *
-│   ├── bl_build.py
-│   ├── fw_protect.py
-│   ├── fw_update.py
-│   ├── util.py
+│   ├── wolfssl
+├── tools 
+│   ├── bl_build.py 
+│   ├── fw_protect.py 
+│   ├── fw_update.py 
+│   ├── secret_build_output.txt
+│   ├── firmware_protected.bin
 ├── README.md
+```
+## Get Started
 
-Directories marked with * are part of the CrASHBoot system
+Run the following commands in order.
+
+Building and flashing the bootloader
+```
+cd tools
+python bl_build.py
+lm4flash ../bootloader/bin/bootloader.bin
+```
+Protect the firmware `fw_protect.py`
+```
+cd ../firmware
+make
+cd ../tools
+python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2"
+```
+Reset the TM4C by pressing the RESET button, then run `fw_update.py`
+```
+python fw_update.py --firmware ./firmware_protected.bin --port /dev/<tty-port> --debug
+python -m serial.tools.miniterm /dev/<tty-port> 115200
 ```
 
 ## Bootloader
 
-The `bootloader` directory contains source code that is compiled and loaded onto the TM4C microcontroller. The bootloader manages which firmware can be updated to the TM4C. When connected to the fw_update tool, the bootloader checks the version of the new firmware against the internal firmware version before accepting the new firmware.
+The Bootloader manages which firmware gets updated to the TM4C, and will start the execution of the loaded vehicle firmware. It checks the version of the new firmware against the internal firmware version before accepting the new firmware.
 
-The bootloader will also start the execution of the loaded vehicle firmware.
+### bootloader.c
+
+The bootloader.c file contains all the essential instructions and functions to successfully run the system and secure firmware.
+```
+load_firmware()		Reads incoming firmware and its metadata from 
+					UART, performs version checks, and writes it to 
+					FW_INCOMING_BASE
+
+boot_firmware()		Manages the firmware update process by verifying 
+					incoming firmware, moving it to FW_CHECK_BASE, 
+					verifying again, decrypting, moving to FW_BASE, and 
+					then executing it
+
+verify_signature()	Verifies the SHA-256 hashed and RSA-2048 PSS 
+					encrypted signature of firmware and metadata
+
+move_and_decrypt()	Moves data from an origin to a destination while 
+					performing AES decryption in 1KB chunks
+
+move_firmware()		Moves a specified number of KB of data 
+					from an origin address to a destination address in 
+					flash memory
+
+erase_partition()	Erases a specified number of flash pages starting 
+					from a given memory address
+
+check_canary()		Verifies a stack canary to detect and prevent 
+					stack overflow attacks
+
+program_flash()		Erases a flash page and then programs data to it
+
+uart_write_str_length() Modification of uart_write_str, but it stops at
+                    a specified length OR a null terminator
+
+```
+#### Memory Map
+```
++-------------------------+ 0x40000
+|                         |
+|      MAX_VERSION        |
+|       (0x28000)         |
+|                         |
++-------------------------+
+|                         |
+|   METADATA_INCOMING_BASE|
+|       (0x30000)         |
+|                         |
++-------------------------+
+|                         |
+|   METADATA_CHECK_BASE   |
+|       (0x28000)         |
+|                         |
++-------------------------+
+|                         |
+|                         |
+|    FW_INCOMING_BASE     |
+|       (0x20000)         |
+|                         |
++-------------------------+
+|                         |
+|     FW_CHECK_BASE       |
+|       (0x18000)         |
+|                         |
++-------------------------+
+|                         |
+|         FW_BASE         |
+|       (0x10000)         |
+|                         |
++-------------------------+
+|                         |
+|    METADATA_BASE        |
+|       (0xFB00)          |
+|                         |
++-------------------------+ 0x0
+```
+#### EEPROM Memory Map
+```
++-------------------------+
+|                         |
+| RSA_PUB_KEY_EEPROM_LOCATION
+|       (0x400)           |
+|                         |
++-------------------------+
+|                         |
+| AES_KEY_EEPROM_LOCATION |
+|       (0x200)           |
+|                         |
++-------------------------+ 0x0
+```
+#### Boot order of operations
+```
++---------------------+
+|                     |
+|  New Firmware Load  |
+| (into *_INCOMING_BASE)
+|                     |
++---------------------+
+        |
+        v
++---------------------+
+| Verify Signature of |
+| *_INCOMING_BASE Data|
++---------------------+
+        |
+        |  NO
+        +-------+
+        |       |
+        |       v
+        |  Run Old Firmware
+        |  (already in *_CHECK_BASE)
+        |  [EXIT]
+        |
+        v YES
++---------------------+
+|   Move to           |
+|  *_CHECK_BASE       |
+|  (Permissions: rw)  |
++---------------------+
+        |
+        v
++---------------------+
+| Verify Signature of |
+| *_CHECK_BASE Data   |
++---------------------+
+        |
+        |  NO
+        +-------+
+        |       |
+        |       v
+        |    QUIT
+        |    [EXIT]
+        |
+        v YES
++---------------------+
+|   Decrypt Data      |
+|   Move to           |
+|  *_BASE             |
+|  (Permissions: rwx) |
++---------------------+
+        |
+        |  NO (e.g., decryption fails, move fails)
+        +-------+
+        |       |
+        |       v
+        |    QUIT
+        |    [EXIT]
+        |
+        v YES
++---------------------+
+|   Run Decrypted     |
+|   Firmware from     |
+|   *_BASE            |
++---------------------+
+```
+
+#### Additional protections & features
+- Disabled debugging & re-flashing
+- Stack canaries
+- Keys stored in secure EEPROM
+- Incoming data length checks
+- Runs previous firmware if incoming data fails signature verification
+
 
 ## Tools
 
-There are three python scripts in the `tools` directory which are used to:
-
-1. Provision the bootloader (`bl_build.py`)
-2. Package the firmware (`fw_protect.py`)
-3. Update the firmware to a TM4C with a provisioned bootloader (`fw_update.py`)
+There are four python scripts in the `tools` directory which are used to:
+1. Provision the bootloader
+2. Generate keys
+3. Bundle and encrypt the firmware
+4. Package the metadata and firmware
+5. Update the firmware to a TM4C with a provisioned bootloader 
 
 ### bl_build.py
 
-This script calls `make` in the `bootloader` directory.
+This script calls `make` in the `bootloader` directory to create the bootloader and generates the following:
+- AES-128 key + IV
+- RSA-2048 private and public keys
 
 ### fw_protect.py
 
-This script bundles the version and release message with the firmware binary.
+This script bundles the version and release message with the firmware binary to package the firmware.
+```
+┌──────────────────────────────────────────────┐
+│           Protected Firmware Output          │
+├──────────────────────────────────────────────┤
+│                   HEADER                     │
+│               (Unencrypted)                  │
+│  ┌────────────────────────────────────────┐  │
+│  │  Encrypted Payload Length   (2 bytes)  │  │
+│  │  Firmware Version           (2 bytes)  │  │
+│  │  Message Length             (2 bytes)  │  │
+│  │  Message              (<= 1024 bytes)  │  │   
+│  └────────────────────────────────────────┘  │
+├──────────────────────────────────────────────┤
+│                   PAYLOAD                    │
+│              (AES-128 CBC Encrypted)         │
+│  ┌────────────────────────────────────────┐  │
+│  │  Firmware Binary  (<= 30kb )           │  │
+│  │  AES Padding                           │  │
+│  └────────────────────────────────────────┘  │
+├──────────────────────────────────────────────┤
+│                 SIGNATURE                    │
+│         (SHA-256 hashed, RSA signed)         │
+│  ┌────────────────────────────────────────┐  │
+│  │  Signature of Header + Payload         │  │
+│  │  (RSA 2048-bit = 256 bytes)            │  │
+│  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+```
 
 ### fw_update.py
 
-This script opens a serial channel with the bootloader, then writes the firmware metadata and binary broken into data frames to the bootloader.
-
-# Building and Flashing the Bootloader
-
-1. Enter the `tools` directory and run `bl_build.py`
-
+This script opens a serial channel with the bootloader, then writes the firmware metadata and binary broken into 256-byte data frames to the bootloader to update the firmware to a TM4C with a provisioned bootloader. 
 ```
-cd ./tools
-python bl_build.py
-```
-
-2. Flash the bootloader using `lm4flash` tool
-   
-```
-sudo lm4flash ../bootloader/bin/bootloader.bin
++------------------+         +---------------------+
+|                  |         |                     |
+| Firmware Updater |         |     Bootloader      |
+|      Tool        |         |                     |
++------------------+         +---------------------+
+        |                            ^
+        | send_metadata(metadata)    |
+        | (Handshake: "U")           |
+        |--------------------------->|
+        |                            |
+        |       Wait for "U" response|
+        |<---------------------------|
+        |                            |
+        | Send metadata (size, version, message_length)
+        |--------------------------->|
+        |                            |
+        |       Wait for RESP_OK (0x00)
+        |<---------------------------|
+        |                            |
+        | update(firmware_blob)      |
+        |                            |
+        | For each frame in firmware:|
+        |   Construct frame:         |
+        |   [Length (2 bytes)]       |
+        |   [Data (variable)]        |
+        |--------------------------->|
+        |                            |
+        |       Wait for RESP_OK (0x00)
+        |<---------------------------|
+        |                            |
+        | Send zero-length frame (0x00 0x00) to signal end
+        |--------------------------->|
+        |                            |
+        |       Wait for RESP_OK (0x00)
+        |<---------------------------|
+        |                            |
+        v                            |
 ```
 
 ## Using WolfSSL
 
-In order to use the WolfSSL cryptographic functionality, you will need to first clone the WolfSSL repository. This repository contains WolfSSL as a submodule:
-
-Run to clone wolfssl to ./lib
-```
-git submodule update --init --recursive
-```
-
-You must also uncomment the wolfssl build instructions in the ./bootloader/Makefile in order to include WolfSSL in your build.
-
-A sample `user_settings.h` is available in the ./bootloader/inc directory. This will allow you to configure the library to suit your project needs.
-
-# Bundling and Updating Firmware
-
-1. Enter the firmware directory and `make` the example firmware. You will not have to design a firmware for this challenge, teams will be provided with firmwares built by the instructors during the attack phase. The `firmware` directory contains an example firmware.
-
-```
-cd ../firmware
-make
-```
-
-2. Enter the tools directory and run `fw_protect.py`
-
-```
-cd ../tools
-python fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2"
-```
-
-This creates a firmware bundle called `firmware_protected.bin` in the tools directory.
-
-3. Reset the TM4C by pressig the RESET button
-
-4. Run `fw_update.py`
-
-```
-python fw_update.py --firmware ./firmware_protected.bin --port <Path to your Tiva (/dev/ttyACM0, /dev/tty.usb...)> --debug
-```
-
-If the firmware bundle is accepted by the bootloader, the `fw_update.py` tool will report it wrote all frames successfully.
-
-Additional firmwares can be updated by repeating steps 3 and 4, but only firmware versions higher than the one flashed to the board (or version 0) will be accepted.
-
-# Interacting with the Bootloader
-
-Using `pyserial` module:
-
-```
-python -m serial.tools.miniterm /dev/ttyACM0 115200
-```
-
-You can now interact with the bootloader and firmware! Type 'B' to boot.
-
-Exit miniterm: `Ctrl-]`
-Exit picocom: `Ctrl-A X`
-
-# Launching the Debugger
-Use OpenOCD with the configuration files for the board to get it into debug mode and open GDB server ports:
-```bash
-openocd -f /usr/share/openocd/scripts/interface/ti-icdi.cfg -f /usr/share/openocd/scripts/board/ti_ek-tm4c123gxl.cfg
-```
-
-Start GDB and connect to the main OpenOCD debug port:
-```bash
-gdb-multiarch -ex "target extended-remote localhost:3333" bootloader/bin/bootloader.axf
-```
-
-Go to `main` function and set a breakpoint
-```
-layout src
-list main
-break bootloader.c:50
-```
-
-Copyright 2024 The MITRE Corporation. ALL RIGHTS RESERVED <br>
-Approved for public release. Distribution unlimited 23-02181-25.
+WolfSSL is an SSL library designed for embedded systems. Using the WolfSSL library, we incorporated multiple functions including those from aes.h and rsa.h to complete encryption and decryption. Make sure to ```git clone https://github.com/wolfSSL/wolfssl``` to `lib/wolfssl`

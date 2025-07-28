@@ -15,7 +15,7 @@ A frame consists of two sections:
 | Length | Data... |
 --------------------
 
-In our case, the data is from one line of the Intel Hex formated .hex file
+In our case, the data is from one line of the formatted .hex file
 
 We write a frame to the bootloader, then wait for it to respond with an
 OK message so we can write the next frame. The OK message in this case is
@@ -34,7 +34,7 @@ RESP_OK = b"\x00"
 FRAME_SIZE = 256
 
 
-# TODO: BYTE ORDER ISSUES WITH HEADER PAYULOAD LENGTH AND VERSION. MIGHT BE EASIER TO CHANGE IN PYTHON
+# Sends metadata to the bootloader to initiate the firmware update process
 def send_metadata(ser, metadata, length, debug=False):
     assert (len(metadata) == length)
     size, version, message_length = struct.unpack('<HHH', metadata[:6])
@@ -61,7 +61,7 @@ def send_metadata(ser, metadata, length, debug=False):
         raise RuntimeError(
             "ERROR: Bootloader responded with {}".format(repr(resp)))
 
-
+# Sends a frame to the bootloader and waits for an OK response
 def send_frame(ser, frame, debug=False):
     ser.write(frame)  # Write the frame...
 
@@ -79,12 +79,12 @@ def send_frame(ser, frame, debug=False):
     if debug:
         print("Resp: {}".format(ord(resp)))
 
-
+# Updates the firmware on the device by reading the firmware file and sending it to the bootloader
 def update(ser, infile, debug):
-    # Open serial port. Set baudrate to 115200. Set timeout to 2 seconds.
+
     with open(infile, "rb") as fp:
         firmware_blob = fp.read()
- 
+
     message_length = struct.unpack('<H', firmware_blob[4:6])[0]
     metadata = firmware_blob[:6 + message_length]
     firmware = firmware_blob[6 + message_length:]
@@ -112,6 +112,7 @@ def update(ser, infile, debug):
     return
 
 
+# main function to parse arguments and initiate the firmware update process
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Firmware Update Tool")
 
