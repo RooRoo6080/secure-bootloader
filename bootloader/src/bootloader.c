@@ -63,7 +63,7 @@ void uart_write_hex_bytes(uint8_t, uint8_t *, uint32_t);
 void erase_partition(uint32_t, uint8_t);
 uint8_t verify_signature(uint32_t, uint32_t, uint32_t, uint16_t, uint32_t);
 uint8_t move_and_decrypt(uint32_t, uint32_t, uint16_t);
-uint8_t move_firmware(uint32_t, uint32_t, uint16_t);
+uint8_t move_flash(uint32_t, uint32_t, uint16_t);
 void check_canary(uint32_t);
 void uart_write_str_length(uint8_t, char *, uint16_t);
 
@@ -79,6 +79,7 @@ void uart_write_str_length(uint8_t, char *, uint16_t);
 
 // Version constant
 #define MAX_VERSION 0x38000
+#define MAX_VERSION_INCOMING 0x38400
 
 // FLASH constants
 #define FLASH_PAGESIZE 1024
@@ -195,33 +196,27 @@ void load_firmware(void) {
 
     // Read metadata lengths
     rcv = uart_read(UART0, BLOCKING, &read);
-    data[data_index] = rcv;
-    data_index++;
+    data[data_index++] = rcv;
     size = (uint32_t)rcv;
 
     rcv = uart_read(UART0, BLOCKING, &read);
-    data[data_index] = rcv;
-    data_index++;
+    data[data_index++] = rcv;
     size |= (uint32_t)rcv << 8;
 
     rcv = uart_read(UART0, BLOCKING, &read);
-    data[data_index] = rcv;
-    data_index++;
+    data[data_index++] = rcv;
     version = (uint32_t)rcv;
 
     rcv = uart_read(UART0, BLOCKING, &read);
-    data[data_index] = rcv;
-    data_index++;
+    data[data_index++] = rcv;
     version |= (uint32_t)rcv << 8;
 
     rcv = uart_read(UART0, BLOCKING, &read);
-    data[data_index] = rcv;
-    data_index++;
+    data[data_index++] = rcv;
     message_length = (uint32_t)rcv;
 
     rcv = uart_read(UART0, BLOCKING, &read);
-    data[data_index] = rcv;
-    data_index++;
+    data[data_index++] = rcv;
     message_length |= (uint32_t)rcv << 8;
 
     if (message_length > 1024) {
@@ -269,8 +264,8 @@ void load_firmware(void) {
         return;
     } else if (version != 0) {
         uint32_t new_version = (uint32_t)version;
-        FlashErase(MAX_VERSION);
-        FlashProgram(&new_version, MAX_VERSION, 4);
+        FlashErase(MAX_VERSION_INCOMING);
+        FlashProgram(&new_version, MAX_VERSION_INCOMING, 4);
     }
 
     check_canary(canary);
@@ -355,7 +350,7 @@ void boot_firmware(void) {
             // Erase next partition and move INCOMING to CHECK
             erase_partition(METADATA_CHECK_BASE, 2);
             erase_partition(FW_CHECK_BASE, 31);
-            if (move_firmware(METADATA_INCOMING_BASE, METADATA_CHECK_BASE, 2) || move_firmware(FW_INCOMING_BASE, FW_CHECK_BASE, 31)) {
+            if (move_flash(METADATA_INCOMING_BASE, METADATA_CHECK_BASE, 2) || move_flash(FW_INCOMING_BASE, FW_CHECK_BASE, 31)) {
                 SysCtlReset();
             }
         } else {
@@ -381,12 +376,16 @@ void boot_firmware(void) {
         erase_partition(METADATA_BASE, 2);
         erase_partition(FW_BASE, 31);
 
-        if (move_firmware(METADATA_CHECK_BASE, METADATA_BASE, 2)) {
-            SysCtlReset();
-        }
-
         // AES decrypt and move firmware to BASE
         if (move_and_decrypt(FW_CHECK_BASE, FW_BASE, 31)) {
+            SysCtlReset();
+        }
+        
+        // Moving metadata and version to BASE
+        if (move_flash(METADATA_CHECK_BASE, METADATA_BASE, 2)) {
+            SysCtlReset();
+        }
+        if (move_flash(MAX_VERSION_INCOMING, MAX_VERSION, 1)) {
             SysCtlReset();
         }
 
@@ -489,7 +488,7 @@ uint8_t move_and_decrypt(uint32_t origin_idx, uint32_t destination_idx, uint16_t
 Moves a given number of kilobytes (usually the firmware) from origin to destinition.
 Checks the canary after moving.
 */
-uint8_t move_firmware(uint32_t origin_idx, uint32_t destination_idx, uint16_t length_in_kb) {
+uint8_t move_flash(uint32_t origin_idx, uint32_t destination_idx, uint16_t length_in_kb) {
     volatile uint32_t canary = canary_global;
 
     for (uint32_t offset = 0; offset < (length_in_kb); offset++) {
