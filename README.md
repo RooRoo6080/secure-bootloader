@@ -67,7 +67,24 @@ With our secure (TM) automotive bootloader, we guarantee that cars running our s
 ```
 ## Get Started
 
-Run the following commands in order.
+
+Prerequisite installation
+- Make
+- lm4tools
+```
+python3 -m venv venv
+source venv/bin/activate
+pip install pyserial
+pip install pycryptodome
+cd lib
+git clone https://github.com/wolfSSL/wolfssl
+cd ..
+cd firmware
+make
+cd ..
+```
+
+Run the following commands in order
 
 Building and flashing the bootloader
 ```
@@ -77,9 +94,6 @@ lm4flash ../bootloader/bin/bootloader.bin
 ```
 Protect the firmware `fw_protect.py`
 ```
-cd ../firmware
-make
-cd ../tools
 python3 fw_protect.py --infile ../firmware/bin/firmware.bin --outfile firmware_protected.bin --version 2 --message "Firmware V2"
 ```
 Reset the TM4C by pressing the RESET button, then run `fw_update.py`
@@ -96,105 +110,93 @@ The Bootloader manages which firmware gets updated to the TM4C, and will start t
 
 The bootloader.c file contains all the essential instructions and functions to successfully run the system and secure firmware.
 ```
-load_firmware()		Reads incoming firmware and its metadata from 
-					UART, performs version checks, and writes it to 
-					FW_INCOMING_BASE
+load_firmware()		Reads incoming firmware and its metadata from UART, performs version checks, and writes it to FW_INCOMING_BASE
 
-boot_firmware()		Manages the firmware update process by verifying 
-					incoming firmware, moving it to FW_CHECK_BASE, 
-					verifying again, decrypting, moving to FW_BASE, and 
-					then executing it
+boot_firmware()		Manages the firmware update process by verifying incoming firmware, moving it to FW_CHECK_BASE, verifying again, decrypting, moving to FW_BASE, and then executing it
 
-verify_signature()	Verifies the SHA-256 hashed and RSA-2048 PSS 
-					encrypted signature of firmware and metadata
+verify_signature()	Verifies the SHA-256 hashed and RSA-2048 PSS encrypted signature of firmware and metadata
 
-move_and_decrypt()	Moves data from an origin to a destination while 
-					performing AES decryption in 1KB chunks
+move_and_decrypt()	Moves data from an origin to a destination while performing AES decryption in 1KB chunks
 
-move_firmware()		Moves a specified number of KB of data 
-					from an origin address to a destination address in 
-					flash memory
+move_firmware()		Moves a specified number of KB of data from an origin address to a destination address in flash memory
 
-erase_partition()	Erases a specified number of flash pages starting 
-					from a given memory address
+erase_partition()	Erases a specified number of flash pages starting from a given memory address
 
-check_canary()		Verifies a stack canary to detect and prevent 
-					stack overflow attacks
+check_canary()		Verifies a stack canary to detect and prevent stack overflow attacks
 
 program_flash()		Erases a flash page and then programs data to it
 
-uart_write_str_length() Modification of uart_write_str, but it stops at
-                    a specified length OR a null terminator
+uart_write_str_length() Modification of uart_write_str, but it stops ata specified length OR a null terminator
 
 ```
 #### Memory Map
 ```
-+-------------------------+ 0x40000
-|                         |
-|      MAX_VERSION        |
-|       (0x28000)         |
-|                         |
-+-------------------------+
-|                         |
-|   METADATA_INCOMING_BASE|
-|       (0x30000)         |
-|                         |
-+-------------------------+
-|                         |
-|   METADATA_CHECK_BASE   |
-|       (0x28000)         |
-|                         |
-+-------------------------+
-|                         |
-|                         |
-|    FW_INCOMING_BASE     |
-|       (0x20000)         |
-|                         |
-+-------------------------+
-|                         |
-|     FW_CHECK_BASE       |
-|       (0x18000)         |
-|                         |
-+-------------------------+
-|                         |
-|         FW_BASE         |
-|       (0x10000)         |
-|                         |
-+-------------------------+
-|                         |
-|    METADATA_BASE        |
-|       (0xFB00)          |
-|                         |
-+-------------------------+ 0x0
++--------------------------+ 0x40000
+|                          |
+|       MAX_VERSION        |
+|        (0x28000)         |
+|                          |
++--------------------------+
+|                          |
+|   METADATA_INCOMING_BASE |
+|        (0x30000)         |
+|                          |
++--------------------------+
+|                          |
+|    METADATA_CHECK_BASE   |
+|        (0x28000)         | 
+|                          |
++--------------------------+
+|                          |
+|                          |
+|     FW_INCOMING_BASE     |
+|        (0x20000)         |
+|                          |
++--------------------------+
+|                          |
+|      FW_CHECK_BASE       |
+|        (0x18000)         |
+|                          |
++--------------------------+
+|                          |
+|          FW_BASE         |
+|        (0x10000)         |
+|                          |
++--------------------------+
+|                          |
+|       METADATA_BASE      |
+|         (0xFB00)         |
+|                          |
++--------------------------+ 0x0
 ```
 #### EEPROM Memory Map
 ```
-+-------------------------+
-|                         |
-| RSA_PUB_KEY_EEPROM_LOCATION
-|       (0x400)           |
-|                         |
-+-------------------------+
-|                         |
-| AES_KEY_EEPROM_LOCATION |
-|       (0x200)           |
-|                         |
-+-------------------------+ 0x0
++---------------------------+
+|                           |
+|RSA_PUB_KEY_EEPROM_LOCATION|
+|         (0x400)           |
+|                           |
++---------------------------+
+|                           |
+|  AES_KEY_EEPROM_LOCATION  |
+|        (0x200)            |
+|                           |
++---------------------------+ 0x0
 ```
 #### Boot order of operations
 ```
-+---------------------+
-|                     |
-|  New Firmware Load  |
-| (into *_INCOMING_BASE)
-|                     |
-+---------------------+
++----------------------+
+|                      |
+|  New Firmware Load   |
+|(into *_INCOMING_BASE)|
+|                      |
++----------------------+
         |
         v
-+---------------------+
-| Verify Signature of |
-| *_INCOMING_BASE Data|
-+---------------------+
++----------------------+
+| Verify Signature of  |
+| *_INCOMING_BASE Data |
++----------------------+
         |
         |  NO
         +-------+
@@ -205,17 +207,17 @@ uart_write_str_length() Modification of uart_write_str, but it stops at
         |  [EXIT]
         |
         v YES
-+---------------------+
-|   Move to           |
-|  *_CHECK_BASE       |
-|  (Permissions: rw)  |
-+---------------------+
++----------------------+
+|   Move to            |
+|  *_CHECK_BASE        |
+|  (Permissions: rw)   |
++----------------------+
         |
         v
-+---------------------+
-| Verify Signature of |
-| *_CHECK_BASE Data   |
-+---------------------+
++----------------------+
+| Verify Signature of  |
+| *_CHECK_BASE Data    |
++----------------------+
         |
         |  NO
         +-------+
@@ -225,12 +227,12 @@ uart_write_str_length() Modification of uart_write_str, but it stops at
         |    [EXIT]
         |
         v YES
-+---------------------+
-|   Decrypt Data      |
-|   Move to           |
-|  *_BASE             |
-|  (Permissions: rwx) |
-+---------------------+
++----------------------+
+|   Decrypt Data       |
+|   Move to            |
+|  *_BASE              |
+|  (Permissions: rwx)  |
++----------------------+
         |
         |  NO (e.g., decryption fails, move fails)
         +-------+
@@ -240,11 +242,11 @@ uart_write_str_length() Modification of uart_write_str, but it stops at
         |    [EXIT]
         |
         v YES
-+---------------------+
-|   Run Decrypted     |
-|   Firmware from     |
-|   *_BASE            |
-+---------------------+
++----------------------+
+|   Run Decrypted      |
+|   Firmware from      |
+|   *_BASE             |
++----------------------+
 ```
 
 #### Additional protections & features
@@ -257,7 +259,7 @@ uart_write_str_length() Modification of uart_write_str, but it stops at
 
 ## Tools
 
-There are four python scripts in the `tools` directory which are used to:
+There are three python scripts in the `tools` directory which are used to:
 1. Provision the bootloader
 2. Generate keys
 3. Bundle and encrypt the firmware
@@ -306,26 +308,27 @@ This script bundles the version and release message with the firmware binary to 
 
 This script opens a serial channel with the bootloader, then writes the firmware metadata and binary broken into 256-byte data frames to the bootloader to update the firmware to a TM4C with a provisioned bootloader. 
 ```
-+------------------+         +---------------------+
-|                  |         |                     |
-| Firmware Updater |         |     Bootloader      |
-|      Tool        |         |                     |
-+------------------+         +---------------------+
++--------------------+         +---------------------+
+|                    |         |                     |
+|  Firmware Updater  |         |     Bootloader      |
+|       Tool         |         |                     |
++--------------------+         +---------------------+
         |                            ^
-        | send_metadata(metadata)    |
-        | (Handshake: "U")           |
+        |   send_metadata(metadata)  |
+        |      (Handshake: "U")      |
         |--------------------------->|
         |                            |
-        |       Wait for "U" response|
+        |    Wait for "U" response   |
         |<---------------------------|
+        |      Send metadata         |
+        (size, version, message_length)
         |                            |
-        | Send metadata (size, version, message_length)
         |--------------------------->|
         |                            |
-        |       Wait for RESP_OK (0x00)
+        |   Wait for RESP_OK (0x00)  |
         |<---------------------------|
         |                            |
-        | update(firmware_blob)      |
+        |   update(firmware_blob)    |
         |                            |
         | For each frame in firmware:|
         |   Construct frame:         |
@@ -333,13 +336,13 @@ This script opens a serial channel with the bootloader, then writes the firmware
         |   [Data (variable)]        |
         |--------------------------->|
         |                            |
-        |       Wait for RESP_OK (0x00)
+        |   Wait for RESP_OK (0x00)  |
         |<---------------------------|
-        |                            |
-        | Send zero-length frame (0x00 0x00) to signal end
+        |   Send zero-length frame   |
+        |  (0x00 0x00) to signal end |
         |--------------------------->|
         |                            |
-        |       Wait for RESP_OK (0x00)
+        |   Wait for RESP_OK (0x00)  |
         |<---------------------------|
         |                            |
         v                            |
@@ -347,4 +350,4 @@ This script opens a serial channel with the bootloader, then writes the firmware
 
 ## Using WolfSSL
 
-WolfSSL is an SSL library designed for embedded systems. Using the WolfSSL library, we incorporated multiple functions including those from aes.h and rsa.h to complete encryption and decryption. Make sure to ```git clone https://github.com/wolfSSL/wolfssl``` to `lib/wolfssl`
+WolfSSL is an SSL library designed for embedded systems. Using the WolfSSL library, we incorporated multiple functions including those from aes.h and rsa.h to complete encryption and decryption. Make sure to ```git clone https://github.com/wolfSSL/wolfssl``` to `lib`
