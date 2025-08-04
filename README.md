@@ -1,5 +1,4 @@
-# Guardian Of Outstanding Firmware, Yay! (GOOFY)
-Secure microcontroller bootloader based on 32-bit ARM architecture
+# Secure microcontroller bootloader based on 32-bit ARM architecture
 
 To be used on Texas Instruments Tiva C Series EK-TM4C123GXL Launchpad
 ```
@@ -30,7 +29,7 @@ ______   ______     ______     __    __
 ```
 
 By Reuel Joseph, Ethan Fuks, Arthur Zhu, Irene Lin, Daniel Miao
-as part of the MIT BWSI Embedded Security and Hardware Hacking program
+as part of the MIT BWSI Embedded Security and Hardware Hacking program led by the MITRE Corporation
 
 With our secure (TM) automotive bootloader, we guarantee that cars running our software will be unhackable (provided hacking is not attempted).
 
