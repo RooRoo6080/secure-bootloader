@@ -1,6 +1,6 @@
 # Secure microcontroller bootloader based on 32-bit ARM architecture
 
-To be used on Texas Instruments Tiva C Series EK-TM4C123GXL Launchpad
+To be flashed on [Texas Instruments Tiva C Series EK-TM4C123GXL Launchpad](https://www.ti.com/tool/EK-TM4C123GXL)
 ```
 ______   ______     ______     __    __  
 /\__  _\ /\  ___\   /\  __ \   /\ "-./  \ 
@@ -31,7 +31,7 @@ ______   ______     ______     __    __
 By Reuel Joseph, Ethan Fuks, Arthur Zhu, Irene Lin, Daniel Miao
 as part of the MIT BWSI Embedded Security and Hardware Hacking program led by the MITRE Corporation
 
-With our secure (TM) automotive bootloader, we guarantee that cars running our software will be unhackable (provided hacking is not attempted).
+Special thanks to our instructors, Ted Clifford, Kyle Buttermore, and Sophia DeCleene. We would also like to thank our TAs, Brandon Aikman, Nhật Nam, and Max McNeal.
 
 # Project Structure
 ```
@@ -68,23 +68,14 @@ With our secure (TM) automotive bootloader, we guarantee that cars running our s
 ## Get Started
 
 
-Prerequisite installation
+Prerequisites
 - Make
 - lm4tools
-```
-python3 -m venv venv
-source venv/bin/activate
-pip install pyserial
-pip install pycryptodome
-cd lib
-git clone https://github.com/wolfSSL/wolfssl
-cd ..
-cd firmware
-make
-cd ..
-```
+- pyserial
+- pycryptodome
+- clone WolfSSL to `lib/`
 
-Run the following commands in order
+Run the following commands in order:
 
 Building and flashing the bootloader
 ```
@@ -104,7 +95,7 @@ python -m serial.tools.miniterm /dev/<tty-port> 115200
 
 ## Bootloader
 
-The Bootloader manages which firmware gets updated to the TM4C, and will start the execution of the loaded vehicle firmware. It checks the version of the new firmware against the internal firmware version before accepting the new firmware.
+The Bootloader manages which firmware gets updated to the TM4C in a secure fashion, and will start the latest valid loaded vehicle firmware.
 
 ### bootloader.c
 
@@ -118,7 +109,7 @@ verify_signature()	Verifies the SHA-256 hashed and RSA-2048 PSS encrypted signat
 
 move_and_decrypt()	Moves data from an origin to a destination while performing AES decryption in 1KB chunks
 
-move_firmware()		Moves a specified number of KB of data from an origin address to a destination address in flash memory
+move_flash()		Moves a specified number of KB of data from an origin address to a destination address in flash memory
 
 erase_partition()	Erases a specified number of flash pages starting from a given memory address
 
@@ -134,7 +125,7 @@ uart_write_str_length() Modification of uart_write_str, but it stops ata specifi
 +--------------------------+ 0x40000
 |                          |
 |       MAX_VERSION        |
-|        (0x28000)         |
+|        (0x38000)         |
 |                          |
 +--------------------------+
 |                          |
